@@ -7,6 +7,7 @@ from htmlparser import *
 
 keywords = []
 tags = []
+filename = None
 
 class MainWindow():
 
@@ -235,17 +236,29 @@ class MainWindow():
 		self.FileMenu = gtk.Menu()
 		self.OpenFile = gtk.MenuItem("Open")
 		self.SaveFile = gtk.MenuItem("Save")
+		self.SaveAsFile = gtk.MenuItem("Save As")
 		self.Quit = gtk.MenuItem("Quit")
 		self.FileMenu.append(self.OpenFile)
 		self.FileMenu.append(self.SaveFile)
+		self.FileMenu.append(self.SaveAsFile)
 		self.FileMenu.append(self.Quit)
 		#connect click functions
 		self.OpenFile.connect("activate", self.menuItemResponse, "Open")
 		self.SaveFile.connect("activate", self.menuItemResponse, "Save")
+		self.SaveAsFile.connect("activate", self.menuItemResponse, "SaveAs")
 		self.Quit.connect("activate", self.menuItemResponse, "Quit")
 		self.OpenFile.show()
 		self.SaveFile.show()
+		self.SaveAsFile.show()
 		self.Quit.show()
+
+		# setting hotkeys
+		accel_group = gtk.AccelGroup()
+		self.mainWindow.add_accel_group(accel_group)
+		self.OpenFile.add_accelerator("activate", accel_group, ord('O'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.SaveFile.add_accelerator("activate", accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Quit.add_accelerator("activate", accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+
 
 		#menu item file
 		self.FileOption = gtk.MenuItem("File")
@@ -268,6 +281,8 @@ class MainWindow():
 		
 		self.MenuBar.append(self.FileOption)
 
+
+
 	def MenuButtonPressed(self, widget, event):
 		if event.type == gtk.gdk.BUTTON_PRESS:
 			widget.popup(None, None, None, event.button, event.time)
@@ -275,7 +290,7 @@ class MainWindow():
 		return False
 
 	def menuItemResponse(self, widget, string):
-		
+		global filename
 		if(string == "Open"):
 			dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
 											(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN, gtk.RESPONSE_OK))
@@ -284,6 +299,7 @@ class MainWindow():
 			if response == gtk.RESPONSE_OK:
 
 			    filestream = open(dialog.get_filename())
+			    filename = dialog.get_filename()
 			    text = filestream.read()
 			    filestream.close()
 
@@ -295,14 +311,15 @@ class MainWindow():
 			    print 'Closed, no files selected' #log
 			dialog.destroy()
 
-		elif(string == "Save"):
+		elif(string == "SaveAs"):
 
-			dialog = gtk.FileChooserDialog("Save..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
+			dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
 											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
 			dialog.set_default_response(gtk.RESPONSE_OK)
 			response = dialog.run()
 			if response == gtk.RESPONSE_OK:
 			    filestream = open(dialog.get_filename(),'w')
+			    filename = dialog.get_filename()
 			    buffer = self.CodeEditorText.get_buffer()
 			    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 			    filestream.close()
@@ -312,6 +329,28 @@ class MainWindow():
 
 		elif(string == "Quit"):
 			gtk.main_quit()
+
+		elif(string == "Save"):
+			if(filename == None):
+				dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
+												(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+				dialog.set_default_response(gtk.RESPONSE_OK)
+				response = dialog.run()
+				if response == gtk.RESPONSE_OK:
+				    filestream = open(dialog.get_filename(),'w')
+				    filename = dialog.get_filename()
+				    buffer = self.CodeEditorText.get_buffer()
+				    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
+				    filestream.close()
+				elif response == gtk.RESPONSE_CANCEL:
+				    print 'Closed, no files selected' #log
+				dialog.destroy()
+			else:
+				filestream = open(filename,'w')
+				buffer = self.CodeEditorText.get_buffer()
+				filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
+				filestream.close()
+
 
 	def CompileRunCode(self,widget):
 
