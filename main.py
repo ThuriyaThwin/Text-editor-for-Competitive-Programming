@@ -259,36 +259,89 @@ class MainWindow():
 		self.SaveFile.add_accelerator("activate", accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Quit.add_accelerator("activate", accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 
-
 		#menu item file
 		self.FileOption = gtk.MenuItem("File")
 		self.FileOption.show()
 		self.FileOption.set_submenu(self.FileMenu)
 
+		#Create Edit Menu
+		self.EditMenu = gtk.Menu()
+		self.Preferences = gtk.MenuItem("Preferences")
+		self.EditMenu.append(self.Preferences)
+		self.Preferences.connect("activate",self.PreferencesResponse,"Preferences")
+		self.Preferences.show()
+
+		#menu edit item
+		self.EditOption = gtk.MenuItem("Edit")
+		self.EditOption.show()
+		self.EditOption.set_submenu(self.EditMenu)
+
 		#create menu bar
 		self.MenuBar = gtk.MenuBar()
 		self.mainVerticalLayout.pack_start(self.MenuBar, fill = False, expand = False)
 		self.MenuBar.show()
-
-		#create file button
-		self.FileButton = gtk.Button("File")
-		self.FileButton.connect_object("event", self.MenuButtonPressed, self.FileMenu)
-		self.FileButton.show()
-
-		# self.MenuBarBox = gtk.HBox()
-		# self.mainVerticalLayout.pack_start(self.MenuBarBox, fill = False, expand = False)
-		# self.MenuBarBox.pack_start(self.FileButton, fill = False, expand = False)
 		
+		#add file options to menu bar		
 		self.MenuBar.append(self.FileOption)
+		self.MenuBar.append(self.EditOption)
 
+	#Response on clicking preferences in edit menu
+	def PreferencesResponse(self, widget, event):
 
+		#create dialog
+		self.PreferencesDialog = gtk.Dialog("Preferences")
+		self.PreferencesDialog.set_has_separator(True)
+		
+		#Hbox to hold label and opacity entry
+		hbox = gtk.HBox()
+		label = gtk.Label("Opacity (0-1) :")
+		label.show()
+		hbox.pack_start(label)
+		#opacity entry box
+		self.PreferencesOpacityEntry = gtk.Entry()
+		self.PreferencesOpacityEntry.connect('changed', self.checkOpacityEntry) #connect to function to validate values
+		self.PreferencesOpacityEntry.show()
+		hbox.pack_start(self.PreferencesOpacityEntry)
+		hbox.show()
+		self.PreferencesDialog.vbox.pack_start(hbox,padding = 5)
+		
 
-	def MenuButtonPressed(self, widget, event):
-		if event.type == gtk.gdk.BUTTON_PRESS:
-			widget.popup(None, None, None, event.button, event.time)
-			return True
-		return False
+		#add cancel button
+		button = self.PreferencesDialog.add_button("Cancel",gtk.RESPONSE_ACCEPT)
+		button.connect("clicked",self.ClosePreferences) #close the box on clicking cancel
+		button.show()
 
+		#add apply button
+		button = self.PreferencesDialog.add_button("Apply",gtk.RESPONSE_ACCEPT)
+		button.connect("clicked",self.ApplyPreferences)
+		button.show()
+
+		self.PreferencesDialog.run()
+
+	#check if value inside entry box is numeric
+	def checkOpacityEntry(self, widget):
+		try:
+			val = float(self.PreferencesOpacityEntry.get_text())
+			if(val<0):
+				self.PreferencesOpacityEntry.set_text('0')
+			elif(val>1):
+				self.PreferencesOpacityEntry.set_text('1')
+		except ValueError:
+			self.PreferencesOpacityEntry.set_text('')
+
+	#close the dialog box
+	def ClosePreferences(self,widget):
+		self.PreferencesDialog.destroy()
+
+	#apply all preferences and close the box
+	def ApplyPreferences(self,widget):
+		#set opacity
+		val = float(self.PreferencesOpacityEntry.get_text())
+		self.mainWindow.set_opacity(val)
+		self.PreferencesDialog.destroy()
+		
+
+	#File option responses in the menu bar
 	def menuItemResponse(self, widget, string):
 		global filename
 		if(string == "Open"):
