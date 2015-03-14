@@ -20,7 +20,7 @@ class MainWindow():
 		self.mainWindow = gtk.Window()
 		self.mainWindow.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#696969'))
 		self.mainWindow.set_position(gtk.WIN_POS_CENTER)
-		self.mainWindow.set_default_size(200,200)
+		self.mainWindow.set_default_size(500,500)
 		#connect the close button
 		self.mainWindow.connect('destroy' , lambda w: gtk.main_quit())
 		#set the opacity of the window
@@ -308,7 +308,7 @@ class MainWindow():
 			    self.CodeEditorText.set_buffer(buffer)
 
 			elif response == gtk.RESPONSE_CANCEL:
-			    print 'Closed, no files selected' #log
+			    print('Closed, no files selected') #log
 			dialog.destroy()
 
 		elif(string == "SaveAs"):
@@ -324,7 +324,7 @@ class MainWindow():
 			    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 			    filestream.close()
 			elif response == gtk.RESPONSE_CANCEL:
-			    print 'Closed, no files selected' #log
+			    print('Closed, no files selected') #log
 			dialog.destroy()
 
 		elif(string == "Quit"):
@@ -343,7 +343,7 @@ class MainWindow():
 				    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 				    filestream.close()
 				elif response == gtk.RESPONSE_CANCEL:
-				    print 'Closed, no files selected' #log
+				    print('Closed, no files selected') #log
 				dialog.destroy()
 			else:
 				filestream = open(filename,'w')
