@@ -3,6 +3,7 @@ import os
 import subprocess
 import re
 import string
+from htmlparser import *
 
 keywords = []
 tags = []
@@ -16,12 +17,13 @@ class MainWindow():
 	def init(self):
 
 		self.mainWindow = gtk.Window()
+		self.mainWindow.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#696969'))
 		self.mainWindow.set_position(gtk.WIN_POS_CENTER)
 		self.mainWindow.set_default_size(200,200)
 		#connect the close button
 		self.mainWindow.connect('destroy' , lambda w: gtk.main_quit())
 		#set the opacity of the window
-		# self.mainWindow.set_opacity(0.2)
+		self.mainWindow.set_opacity(0.8)
 		#perform changes(setting the window separators) to the window when it resizes
 		self.mainWindow.connect("configure_event",self.WindowResize)
 
@@ -54,7 +56,7 @@ class MainWindow():
 
 		#Center Window that contains 1 Vertical paned window and compiler output area
 		self.CenterWindow = gtk.VPaned()
-		self.mainVerticalLayout.add(self.CenterWindow)
+		self.mainVerticalLayout.pack_start(self.CenterWindow,padding = 5)
 		self.CenterWindow.add(self.IOCodeWindow)
 
 		#set compiler output area
@@ -76,12 +78,13 @@ class MainWindow():
 
 	def CreateCompilerBox(self):
 
+		#create a scrolled window for compiler/run output
 		self.CompilerScrolledWindow = gtk.ScrolledWindow()
 		self.CompilerScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 		self.CompilerText = gtk.TextView()
 		self.CompilerText.set_editable(False)
 		self.CompilerScrolledWindow.add(self.CompilerText)
-
+		#add to center window(VPaned)
 		self.CenterWindow.add(self.CompilerScrolledWindow)
 
 	def CreateCodeEditorBox(self):
@@ -99,27 +102,10 @@ class MainWindow():
 		self.IOCodeWindow.add(self.CodeEditorBox)
 		#TODO function to auto set the position when window size changes
 
-		self.CodeEditorText.connect('key_release_event',self.textEntryCodeEditor)
+		self.CodeEditorText.connect('key_release_event',self.keyPressCodeEditor)
 		self.CodeEditorText.set_events(gtk.gdk.KEY_RELEASE_MASK)
 
-		# buffer = self.CodeEditorText.get_buffer()
-		# self.keyWordTag = buffer.create_tag("red",foreground = '#ff0000')
-
-		# buffer = self.CodeEditorText.get_buffer()
-		# start_iter = buffer.get_start_iter()
-		# end_iter = buffer.get_end_iter()	
-
-		# self.keyWordTag = buffer.create_tag("red",foreground = '#ff0000')
-		# buffer.insert(start_iter, "for")
-
-		# start_iter = buffer.get_start_iter()
-		# end_iter = buffer.get_end_iter()	
-		# buffer.apply_tag(self.keyWordTag,start_iter,end_iter)
-		# self.CodeEditorText.set_buffer(buffer)
-
-		# tagTable = buffer.get_tag_table()
-
-	def textEntryCodeEditor(self,widget,event):
+	def keyPressCodeEditor(self,widget,event):
 
 		self.HighlightKeywords()
 		
@@ -215,6 +201,22 @@ class MainWindow():
 	def onPressEnterUrlBar(self,widget,event):
 		if(event.keyval == 65293):
 			print("enter pressed")
+			inputbuffer = self.InputText.get_buffer()
+			inputbuffer.set_text('')
+			self.InputText.set_buffer(inputbuffer)
+
+			outputbuffer = self.OutputText.get_buffer()
+			outputbuffer.set_text('')
+			self.OutputText.set_buffer(outputbuffer)
+
+
+			urlVal = self.UrlEntry.get_text()
+			io = getInputOutput(urlVal)
+
+			inputbuffer.set_text(io[0])
+			self.InputText.set_buffer(inputbuffer)
+			outputbuffer.set_text(io[1])
+			self.OutputText.set_buffer(outputbuffer)
 
 	def CreateToolBar(self):
 
@@ -273,7 +275,43 @@ class MainWindow():
 		return False
 
 	def menuItemResponse(self, widget, string):
-		print(string+" pressed")
+		
+		if(string == "Open"):
+			dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
+											(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+			dialog.set_default_response(gtk.RESPONSE_OK)
+			response = dialog.run()
+			if response == gtk.RESPONSE_OK:
+
+			    filestream = open(dialog.get_filename())
+			    text = filestream.read()
+			    filestream.close()
+
+			    buffer = self.CodeEditorText.get_buffer()
+			    buffer.set_text(text)
+			    self.CodeEditorText.set_buffer(buffer)
+
+			elif response == gtk.RESPONSE_CANCEL:
+			    print 'Closed, no files selected' #log
+			dialog.destroy()
+
+		elif(string == "Save"):
+
+			dialog = gtk.FileChooserDialog("Save..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
+											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+			dialog.set_default_response(gtk.RESPONSE_OK)
+			response = dialog.run()
+			if response == gtk.RESPONSE_OK:
+			    filestream = open(dialog.get_filename(),'w')
+			    buffer = self.CodeEditorText.get_buffer()
+			    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
+			    filestream.close()
+			elif response == gtk.RESPONSE_CANCEL:
+			    print 'Closed, no files selected' #log
+			dialog.destroy()
+
+		elif(string == "Quit"):
+			gtk.main_quit()
 
 	def CompileRunCode(self,widget):
 
@@ -312,8 +350,11 @@ class MainWindow():
 			#run the code
 			stream = subprocess.Popen(['./a.out'], stdout = subprocess.PIPE, stdin = subprocess.PIPE,stderr = subprocess.PIPE)
 			#get output and error
-			output, err = stream.communicate()#self.inputText.get("1.0",END))
-
+			buffer = self.InputText.get_buffer()
+			inputvalue = buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter())
+			print(inputvalue)
+			output, err = stream.communicate(inputvalue)
+			
 			#if no error => run successful
 			if(err == ''):
 
@@ -324,15 +365,9 @@ class MainWindow():
 
 				#store user's output and required output
 				userOutput = output.rstrip()
-				reqOutput = ''# self.outputText.get("1.0",END).rstrip()
 
-				#to show output in another window
-				# newWindow = Tk()
-				# newWindow.geometry("600x600+210+210")
-				# outputWindow = OutputWindow(newWindow,userOutput,reqOutput)
-				# outputWindow.master.title("Output")
-				# newWindow.mainloop()
-
+				buffer = self.OutputText.get_buffer()
+				reqOutput = (buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())).rstrip()# self.outputText.get("1.0",END).rstrip()
 
 				print("USEROUTPUT:") #log
 				print(userOutput) #log
