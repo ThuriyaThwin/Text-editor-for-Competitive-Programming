@@ -31,6 +31,7 @@ def codechef(source):
 	return val
 
 def spoj(source):
+	
 	soup = bs4.BeautifulSoup(source)
 	val = []
 	val.append(soup.pre.b.next_sibling.strip())

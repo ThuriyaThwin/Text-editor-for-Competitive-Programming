@@ -274,9 +274,23 @@ class MainWindow():
 		#Create Edit Menu
 		self.EditMenu = gtk.Menu()
 		self.Preferences = gtk.MenuItem("Preferences")
+		self.Cut = gtk.MenuItem("Cut")
+		self.Copy = gtk.MenuItem("Copy")
+		self.Paste = gtk.MenuItem("Paste")
+		self.EditMenu.append(self.Cut)
+		self.EditMenu.append(self.Copy)
+		self.EditMenu.append(self.Paste)
 		self.EditMenu.append(self.Preferences)
-		self.Preferences.connect("activate",self.PreferencesResponse,"Preferences")
+		self.Cut.connect("activate",self.CutText)
+		self.Copy.connect("activate",self.CopyText)
+		self.Paste.connect("activate",self.PasteText)
+		self.Preferences.connect("activate",self.PreferencesResponse)
+		self.Cut.show()
 		self.Preferences.show()
+
+		self.Cut.add_accelerator("activate", accel_group, ord('X'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Copy.add_accelerator("activate", accel_group, ord('C'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Paste.add_accelerator("activate", accel_group, ord('V'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 
 		#menu edit item
 		self.EditOption = gtk.MenuItem("Edit")
@@ -292,8 +306,29 @@ class MainWindow():
 		self.MenuBar.append(self.FileOption)
 		self.MenuBar.append(self.EditOption)
 
+	#function to paste text into the editor from clipboard
+	def PasteText(self,widget):
+		
+		buffer = self.CodeEditorText.get_buffer()
+		clipboard =  gtk.Clipboard()
+		buffer.paste_clipboard(clipboard, None, True)
+
+	#function to copy selected text onto the clipboard
+	def CopyText(self,widget):
+		
+		buffer = self.CodeEditorText.get_buffer()
+		clipboard =  gtk.Clipboard()
+		buffer.copy_clipboard(clipboard)
+
+	#function to cut selected text onto the clipboard
+	def CutText(self,widget):
+		
+		buffer = self.CodeEditorText.get_buffer()
+		clipboard = gtk.Clipboard()
+		buffer.cut_clipboard(clipboard,True)
+
 	#Response on clicking preferences in edit menu
-	def PreferencesResponse(self, widget, event):
+	def PreferencesResponse(self, widget):
 
 		#create dialog
 		self.PreferencesDialog = gtk.Dialog("Preferences")
