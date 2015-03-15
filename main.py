@@ -6,13 +6,14 @@ import string
 from htmlparser import *
 
 keywords = []
-#TODO change to class member
 tags = []
 
 #TODO
+#undo redo
 #recent files
 #more languages
 #more websites
+#global tags to class member
 
 class MainWindow():
 
@@ -124,20 +125,21 @@ class MainWindow():
 	#creates a page for the codenotebook
 	def CreateNotebookPage(self, label_name = 'Untitled', text = ''):
 
+		#Hbox that makes up the tab label
 		labelBox = gtk.HBox()
-		pageLabel = gtk.Label(label_name)
+		pageLabel = gtk.Label(label_name) #tab label
 		pageLabel.show()		
-		image = gtk.Image()
+		image = gtk.Image() #image of cross button
 		image.set_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
-		closeButton = gtk.Button()
+		closeButton = gtk.Button() #close image button
 		closeButton.set_image(image)
 		closeButton.set_relief(gtk.RELIEF_NONE)
-		
 		closeButton.show()
 		labelBox.pack_start(pageLabel)
 		labelBox.pack_start(closeButton)
 		labelBox.show()
 		
+		#code editor window (tab content)
 		CodeEditorScrolledWindow = gtk.ScrolledWindow()
 		CodeEditorScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 		#code editor text object
@@ -145,30 +147,28 @@ class MainWindow():
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
 		CodeEditorText.set_buffer(buffer)
-		buffer.connect('changed',self.keyPressCodeEditor)
-		CodeEditorText.set_events(gtk.gdk.KEY_RELEASE_MASK)
+		buffer.connect('changed',self.keyPressCodeEditor) #set callback function whenever text is changed
 		CodeEditorText.show()
 		CodeEditorScrolledWindow.add(CodeEditorText)
 		CodeEditorScrolledWindow.show()
 
-
+		#connect the close button
 		closeButton.connect("clicked", self.ClosePage, CodeEditorScrolledWindow)
 
 		if(label_name == 'Untitled'):
 			return [CodeEditorScrolledWindow, labelBox, None]
 		else:
 			return [CodeEditorScrolledWindow, labelBox, label_name]
-		
+	
+	#function to close the respective tab
 	def ClosePage(self, widget, label):
 		index = self.CodeNotebook.page_num(label)
 		self.CodeNotebook.remove_page(index)
 		del self.CodeNotebookPages[index]
 		widget.destroy()
 
-	#called when a key is released after pressing into  the editor
+	#called when text is changed in the editor
 	def keyPressCodeEditor(self,widget):
-		# print(event.keyval)
-		# print("string: "+event.string+".")
 		self.HighlightKeywords()
 		
 
@@ -260,30 +260,40 @@ class MainWindow():
 		self.UrlLabel = gtk.Label('URL :')
 		self.UrlBox.pack_start(self.UrlLabel, fill = False, expand = False, padding = 5)
 		#URL entry box
-		self.UrlEntry = gtk.Entry()
-		self.UrlEntry.connect('key_release_event',self.onPressEnterUrlBar)
-		self.UrlEntry.set_events(gtk.gdk.KEY_RELEASE_MASK)
-		self.UrlBox.pack_start(self.UrlEntry,padding = 5)
+		self.UrlTextView = gtk.TextView()
+		self.UrlTextView.connect('key_release_event',self.onPressEnterUrlBar)
+		self.UrlTextView.set_events(gtk.gdk.KEY_RELEASE_MASK)
+		self.UrlBox.pack_start(self.UrlTextView,padding = 5)
 
+		self.UrlButton = gtk.Button("GO")
+		self.UrlButton.connect('clicked',self.getTestCases)
+		self.UrlBox.pack_start(self.UrlButton,False,False,padding = 5)
+
+
+	#fetch test cases from url and add to input output boxes
+	def getTestCases(self,widget):
+		inputbuffer = self.InputText.get_buffer()
+		inputbuffer.set_text('')
+		self.InputText.set_buffer(inputbuffer)
+
+		outputbuffer = self.OutputText.get_buffer()
+		outputbuffer.set_text('')
+		self.OutputText.set_buffer(outputbuffer)
+
+
+		urlVal = self.UrlView.get_buffer().get_text()
+		io = getInputOutput(urlVal)
+
+		inputbuffer.set_text(io[0])
+		self.InputText.set_buffer(inputbuffer)
+		outputbuffer.set_text(io[1])
+		self.OutputText.set_buffer(outputbuffer)
+
+
+	#called when Enter is pressed on the URL bar
 	def onPressEnterUrlBar(self,widget,event):
-
 		if(event.keyval == 65293):
-			inputbuffer = self.InputText.get_buffer()
-			inputbuffer.set_text('')
-			self.InputText.set_buffer(inputbuffer)
-
-			outputbuffer = self.OutputText.get_buffer()
-			outputbuffer.set_text('')
-			self.OutputText.set_buffer(outputbuffer)
-
-
-			urlVal = self.UrlEntry.get_text()
-			io = getInputOutput(urlVal)
-	
-			inputbuffer.set_text(io[0])
-			self.InputText.set_buffer(inputbuffer)
-			outputbuffer.set_text(io[1])
-			self.OutputText.set_buffer(outputbuffer)
+			self.getTestCases(None)
 
 
 	#MENU BAR FUNCTIONS BELOW
@@ -365,24 +375,24 @@ class MainWindow():
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
 		
-		page_num = self.CodeNotebook.get_current_page()
-		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+		child = self.mainWindow.get_focus()
+		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
 		buffer.paste_clipboard(clipboard, None, True)
 
 	#function to copy selected text onto the clipboard
 	def CopyText(self,widget):
 		
-		page_num = self.CodeNotebook.get_current_page()
-		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+		child = self.mainWindow.get_focus()
+		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
 		buffer.copy_clipboard(clipboard)
 
 	#function to cut selected text onto the clipboard
 	def CutText(self,widget):
 		
-		page_num = self.CodeNotebook.get_current_page()
-		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+		child = self.mainWindow.get_focus()
+		buffer = child.get_buffer()
 		clipboard = gtk.Clipboard()
 		buffer.cut_clipboard(clipboard,True)
 
