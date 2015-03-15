@@ -15,6 +15,8 @@ def getInputOutput(url):
 
 	if(url.find('www.codechef.com') >= 0 ):
 		return codechef(source)
+	if(url.find('www.spoj.com') >= 0):
+		return spoj(source)
 
 	return val
 
@@ -27,3 +29,10 @@ def codechef(source):
 		val.append(child.next_sibling.strip())
 
 	return val
+
+def spoj(source):
+	soup = bs4.BeautifulSoup(source)
+	val = []
+	val.append(soup.pre.b.next_sibling.strip())
+	val.append(soup.pre.b.next_sibling.next_sibling.next_sibling.strip())
+	return val	

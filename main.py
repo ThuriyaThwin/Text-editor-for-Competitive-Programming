@@ -9,6 +9,11 @@ keywords = []
 tags = []
 filename = None
 
+#TODO
+#recent files
+#more languages
+#more websites
+
 class MainWindow():
 
 	def __init__(self):
@@ -17,7 +22,8 @@ class MainWindow():
 
 	def init(self):
 
-		self.mainWindow = gtk.Window()
+		self.mainWindow = gtk.Window(gtk.WINDOW_TOPLEVEL)
+		self.mainWindow.set_title("Zarroc")
 		self.mainWindow.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#696969'))
 		self.mainWindow.set_position(gtk.WIN_POS_CENTER)
 		self.mainWindow.set_default_size(500,500)
@@ -63,9 +69,9 @@ class MainWindow():
 		#set compiler output area
 		self.CreateCompilerBox()
 
-
 		self.mainWindow.show_all()
 		gtk.main()
+
 
 	def WindowResize(self,widget,allocation):
 
@@ -107,7 +113,8 @@ class MainWindow():
 		self.CodeEditorText.set_events(gtk.gdk.KEY_RELEASE_MASK)
 
 	def keyPressCodeEditor(self,widget,event):
-
+		# print(event.keyval)
+		# print("string: "+event.string+".")
 		self.HighlightKeywords()
 		
 
@@ -200,8 +207,8 @@ class MainWindow():
 		self.UrlBox.pack_start(self.UrlEntry,padding = 5)
 
 	def onPressEnterUrlBar(self,widget,event):
+
 		if(event.keyval == 65293):
-			print("enter pressed")
 			inputbuffer = self.InputText.get_buffer()
 			inputbuffer.set_text('')
 			self.InputText.set_buffer(inputbuffer)
@@ -213,7 +220,7 @@ class MainWindow():
 
 			urlVal = self.UrlEntry.get_text()
 			io = getInputOutput(urlVal)
-
+	
 			inputbuffer.set_text(io[0])
 			self.InputText.set_buffer(inputbuffer)
 			outputbuffer.set_text(io[1])
