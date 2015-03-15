@@ -6,8 +6,8 @@ import string
 from htmlparser import *
 
 keywords = []
+#TODO change to class member
 tags = []
-filename = None
 
 #TODO
 #recent files
@@ -18,6 +18,7 @@ class MainWindow():
 
 	def __init__(self):
 
+		self.CodeNotebookPages = []
 		self.init()
 
 	def init(self):
@@ -73,6 +74,8 @@ class MainWindow():
 		gtk.main()
 
 
+	#function called when window is resized
+	#used to set the separators of the paned windows
 	def WindowResize(self,widget,allocation):
 
 		#adjust pane bar between IO window
@@ -83,46 +86,101 @@ class MainWindow():
 		self.CenterWindow.set_position(int(allocation.height*0.8))
 
 
+	#Creates the compiler output window
 	def CreateCompilerBox(self):
 
 		#create a scrolled window for compiler/run output
 		self.CompilerScrolledWindow = gtk.ScrolledWindow()
 		self.CompilerScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 		self.CompilerText = gtk.TextView()
-		self.CompilerText.set_editable(False)
+		self.CompilerText.set_editable(False) #disable user to edit the content
 		self.CompilerScrolledWindow.add(self.CompilerText)
 		#add to center window(VPaned)
 		self.CenterWindow.add(self.CompilerScrolledWindow)
 
 	def CreateCodeEditorBox(self):
 
-		#Box to hold CodeEditor
+		#Box to hold CodeNotebook
 		self.CodeEditorBox = gtk.HBox()
-		#scrolled window to hold code editor
-		self.CodeEditorScrolledWindow = gtk.ScrolledWindow()
-		self.CodeEditorScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-		#code editor text object
-		self.CodeEditorText = gtk.TextView()
-		self.CodeEditorScrolledWindow.add(self.CodeEditorText)
-		self.CodeEditorBox.pack_start(self.CodeEditorScrolledWindow,padding = 5)
+
+		#code notebook to hold all files as tabs
+		self.CodeNotebook = gtk.Notebook()
+		self.CodeNotebook.set_tab_pos(gtk.POS_TOP)
+		self.CodeNotebook.set_show_tabs(True)
+		self.CodeNotebook.set_show_border(True)
+		self.CodeNotebook.set_scrollable(True)
+		self.CodeNotebook.show()
+
+		
+		page = self.CreateNotebookPage()
+		self.CodeNotebookPages.append(page)
+		self.CodeNotebook.append_page(page[0], page[1])
+
+		#add notebook to box
+		self.CodeEditorBox.pack_start(self.CodeNotebook,padding = 5)
 		#adding the code editor scrolled window to vertical pannable window
 		self.IOCodeWindow.add(self.CodeEditorBox)
-		#TODO function to auto set the position when window size changes
 
-		self.CodeEditorText.connect('key_release_event',self.keyPressCodeEditor)
-		self.CodeEditorText.set_events(gtk.gdk.KEY_RELEASE_MASK)
+	#creates a page for the codenotebook
+	def CreateNotebookPage(self, label_name = 'Untitled', text = ''):
 
-	def keyPressCodeEditor(self,widget,event):
+		labelBox = gtk.HBox()
+		pageLabel = gtk.Label(label_name)
+		pageLabel.show()		
+		image = gtk.Image()
+		image.set_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
+		closeButton = gtk.Button()
+		closeButton.set_image(image)
+		closeButton.set_relief(gtk.RELIEF_NONE)
+		
+		closeButton.show()
+		labelBox.pack_start(pageLabel)
+		labelBox.pack_start(closeButton)
+		labelBox.show()
+		
+		CodeEditorScrolledWindow = gtk.ScrolledWindow()
+		CodeEditorScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		#code editor text object
+		CodeEditorText = gtk.TextView()
+		buffer = CodeEditorText.get_buffer()
+		buffer.set_text(text)
+		CodeEditorText.set_buffer(buffer)
+		buffer.connect('changed',self.keyPressCodeEditor)
+		CodeEditorText.set_events(gtk.gdk.KEY_RELEASE_MASK)
+		CodeEditorText.show()
+		CodeEditorScrolledWindow.add(CodeEditorText)
+		CodeEditorScrolledWindow.show()
+
+
+		closeButton.connect("clicked", self.ClosePage, CodeEditorScrolledWindow)
+
+		if(label_name == 'Untitled'):
+			return [CodeEditorScrolledWindow, labelBox, None]
+		else:
+			return [CodeEditorScrolledWindow, labelBox, label_name]
+		
+	def ClosePage(self, widget, label):
+		index = self.CodeNotebook.page_num(label)
+		self.CodeNotebook.remove_page(index)
+		del self.CodeNotebookPages[index]
+		widget.destroy()
+
+	#called when a key is released after pressing into  the editor
+	def keyPressCodeEditor(self,widget):
 		# print(event.keyval)
 		# print("string: "+event.string+".")
 		self.HighlightKeywords()
 		
 
+	#function to go throught the text in the editor box and highlight keywords
+	#removes all tags and reapplies them everytime a key is pressed
+	#can be improved
 	def HighlightKeywords(self):
 		global keywords,tags
 		#HIGHLIGHT KEYWORDS BELOW
 		#get buffer
-		buffer = self.CodeEditorText.get_buffer()
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
@@ -152,6 +210,7 @@ class MainWindow():
 				start_iter = pos[1]
 				#search again
 				pos = start_iter.forward_search(word,gtk.TEXT_SEARCH_TEXT_ONLY)		
+
 
 
 	def CreateIOTextBoxes(self):
@@ -226,34 +285,30 @@ class MainWindow():
 			outputbuffer.set_text(io[1])
 			self.OutputText.set_buffer(outputbuffer)
 
-	def CreateToolBar(self):
 
-		#Toolbar box
-		self.ToolBarBox = gtk.HBox()
-		self.mainVerticalLayout.pack_start(self.ToolBarBox, fill = False, expand = False)
-		#Compile and run button
-		self.CompileRunButton = gtk.Button('Compile&Run')
-		self.CompileRunButton.connect('clicked',self.CompileRunCode)
-		self.ToolBarBox.pack_start(self.CompileRunButton, fill = False, expand = False, padding = 5)
-
+	#MENU BAR FUNCTIONS BELOW
 
 	def CreateMenuBar(self):
 
 		#Create file menu options
 		self.FileMenu = gtk.Menu()
+		self.NewFile = gtk.MenuItem("New")
 		self.OpenFile = gtk.MenuItem("Open")
 		self.SaveFile = gtk.MenuItem("Save")
 		self.SaveAsFile = gtk.MenuItem("Save As")
 		self.Quit = gtk.MenuItem("Quit")
+		self.FileMenu.append(self.NewFile)
 		self.FileMenu.append(self.OpenFile)
 		self.FileMenu.append(self.SaveFile)
 		self.FileMenu.append(self.SaveAsFile)
 		self.FileMenu.append(self.Quit)
 		#connect click functions
-		self.OpenFile.connect("activate", self.menuItemResponse, "Open")
-		self.SaveFile.connect("activate", self.menuItemResponse, "Save")
-		self.SaveAsFile.connect("activate", self.menuItemResponse, "SaveAs")
-		self.Quit.connect("activate", self.menuItemResponse, "Quit")
+		self.NewFile.connect("activate", self.OpenNewFileDialog)
+		self.OpenFile.connect("activate", self.OpenFileDialog)
+		self.SaveFile.connect("activate", self.SaveFileDialog)
+		self.SaveAsFile.connect("activate", self.SaveAsFileDialog)
+		self.Quit.connect("activate", self.QuitApp)
+		self.NewFile.show()
 		self.OpenFile.show()
 		self.SaveFile.show()
 		self.SaveAsFile.show()
@@ -265,6 +320,7 @@ class MainWindow():
 		self.OpenFile.add_accelerator("activate", accel_group, ord('O'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.SaveFile.add_accelerator("activate", accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Quit.add_accelerator("activate", accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.NewFile.add_accelerator("activate", accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 
 		#menu item file
 		self.FileOption = gtk.MenuItem("File")
@@ -309,21 +365,24 @@ class MainWindow():
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
 		
-		buffer = self.CodeEditorText.get_buffer()
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 		clipboard =  gtk.Clipboard()
 		buffer.paste_clipboard(clipboard, None, True)
 
 	#function to copy selected text onto the clipboard
 	def CopyText(self,widget):
 		
-		buffer = self.CodeEditorText.get_buffer()
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 		clipboard =  gtk.Clipboard()
 		buffer.copy_clipboard(clipboard)
 
 	#function to cut selected text onto the clipboard
 	def CutText(self,widget):
 		
-		buffer = self.CodeEditorText.get_buffer()
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 		clipboard = gtk.Clipboard()
 		buffer.cut_clipboard(clipboard,True)
 
@@ -383,75 +442,127 @@ class MainWindow():
 		self.PreferencesDialog.destroy()
 		
 
-	#File option responses in the menu bar
-	def menuItemResponse(self, widget, string):
-		global filename
-		if(string == "Open"):
-			dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
+	def OpenNewFileDialog(self,widget):
+
+		page = self.CreateNotebookPage()
+		self.CodeNotebook.append_page(page[0],page[1])
+		self.CodeNotebookPages.append(page)
+		self.CodeNotebook.set_current_page(-1)
+
+
+	def OpenFileDialog(self, widget):
+
+		dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
 											(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN, gtk.RESPONSE_OK))
-			dialog.set_default_response(gtk.RESPONSE_OK)
-			response = dialog.run()
-			if response == gtk.RESPONSE_OK:
+		dialog.set_default_response(gtk.RESPONSE_OK)
+		response = dialog.run()
+		if response == gtk.RESPONSE_OK:
 
-			    filestream = open(dialog.get_filename())
-			    filename = dialog.get_filename()
-			    text = filestream.read()
-			    filestream.close()
+			filestream = open(dialog.get_filename())
+			filename = dialog.get_filename()
+			text = filestream.read()
+			filestream.close()
 
-			    buffer = self.CodeEditorText.get_buffer()
-			    buffer.set_text(text)
-			    self.CodeEditorText.set_buffer(buffer)
+			page = self.CreateNotebookPage(filename[filename.rfind('/')+1:], text)
+			self.CodeNotebookPages.append(page)
+			self.CodeNotebook.append_page(page[0], page[1])		
 
-			elif response == gtk.RESPONSE_CANCEL:
-			    print('Closed, no files selected') #log
-			dialog.destroy()
+		elif response == gtk.RESPONSE_CANCEL:
+			print('Closed, no files selected') #log
+		dialog.destroy()
+		self.CodeNotebook.set_current_page(-1)
 
-		elif(string == "SaveAs"):
 
+	def SaveAsFileDialog(self, widget):
+
+		dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
+											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+		dialog.set_default_response(gtk.RESPONSE_OK)
+		response = dialog.run()
+		if response == gtk.RESPONSE_OK:
+
+		    filestream = open(dialog.get_filename(),'w')
+		    filename = dialog.get_filename()
+
+		    page_num = self.CodeNotebook.get_current_page()
+		    buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+
+		    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
+		    filestream.close()
+
+		    self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
+		    self.CodeNotebookPages[page_num][2] = filename[filename.rfind('/')+1:]
+
+		elif response == gtk.RESPONSE_CANCEL:
+		    print('Closed, no files selected') #log
+
+		dialog.destroy()
+
+
+	def QuitApp(self,widget):
+		gtk.main_quit()
+
+
+	def SaveFileDialog(self, widget):
+
+		page_num = self.CodeNotebook.get_current_page()
+		print(self.CodeNotebookPages[page_num])
+		filename =  self.CodeNotebookPages[page_num][2]
+
+		if(filename == None):
 			dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
 											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
 			dialog.set_default_response(gtk.RESPONSE_OK)
 			response = dialog.run()
 			if response == gtk.RESPONSE_OK:
-			    filestream = open(dialog.get_filename(),'w')
-			    filename = dialog.get_filename()
-			    buffer = self.CodeEditorText.get_buffer()
-			    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
-			    filestream.close()
-			elif response == gtk.RESPONSE_CANCEL:
-			    print('Closed, no files selected') #log
-			dialog.destroy()
+				filestream = open(dialog.get_filename(),'w')
+				filename = dialog.get_filename()
 
-		elif(string == "Quit"):
-			gtk.main_quit()
+				page_num = self.CodeNotebook.get_current_page()
+				print("\ncurrent page : "+str(page_num)+'\n')
+				buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 
-		elif(string == "Save"):
-			if(filename == None):
-				dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
-												(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
-				dialog.set_default_response(gtk.RESPONSE_OK)
-				response = dialog.run()
-				if response == gtk.RESPONSE_OK:
-				    filestream = open(dialog.get_filename(),'w')
-				    filename = dialog.get_filename()
-				    buffer = self.CodeEditorText.get_buffer()
-				    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
-				    filestream.close()
-				elif response == gtk.RESPONSE_CANCEL:
-				    print('Closed, no files selected') #log
-				dialog.destroy()
-			else:
-				filestream = open(filename,'w')
-				buffer = self.CodeEditorText.get_buffer()
 				filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 				filestream.close()
 
+				self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
+			elif response == gtk.RESPONSE_CANCEL:
+				print('Closed, no files selected') #log
+			dialog.destroy()
+		else:
+			filestream = open(filename,'w')
+			
+			page_num = self.CodeNotebook.get_current_page()
+			buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+			
+			filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
+			filestream.close()
 
+			self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
+
+
+
+
+	#TOOLBAR FUNCTIONS BELOW
+
+	#creates and adds the toolbar to the window
+	def CreateToolBar(self):
+
+		#Toolbar box
+		self.ToolBarBox = gtk.HBox()
+		self.mainVerticalLayout.pack_start(self.ToolBarBox, fill = False, expand = False)
+		#Compile and run button
+		self.CompileRunButton = gtk.Button('Compile&Run')
+		self.CompileRunButton.connect('clicked',self.CompileRunCode)
+		self.ToolBarBox.pack_start(self.CompileRunButton, fill = False, expand = False, padding = 5)
+
+	#function called when compile&run button is click
 	def CompileRunCode(self,widget):
 
 		#write code to file
 		codefile = open('tempcode.cpp','w')
-		buffer = self.CodeEditorText.get_buffer()
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
 		text = buffer.get_text(start_iter,end_iter,True)
@@ -464,7 +575,7 @@ class MainWindow():
 		#perform compilation
 		stream = subprocess.Popen(['g++','tempcode.cpp'],stdout = subprocess.PIPE,stdin = subprocess.PIPE,stderr= subprocess.PIPE)
 
-		#get output
+		#get output/err
 		output,err = stream.communicate()
 
 		#if no output and no error => compilation successful
