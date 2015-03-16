@@ -112,7 +112,7 @@ class MainWindow():
 		self.CodeNotebook.set_scrollable(True)
 		self.CodeNotebook.show()
 
-		
+		#create and add a notebook page
 		page = self.CreateNotebookPage()
 		self.CodeNotebookPages.append(page)
 		self.CodeNotebook.append_page(page[0], page[1])
@@ -132,8 +132,8 @@ class MainWindow():
 		image = gtk.Image() #image of cross button
 		image.set_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
 		closeButton = gtk.Button() #close image button
-		closeButton.set_image(image)
-		closeButton.set_relief(gtk.RELIEF_NONE)
+		closeButton.set_image(image) #set the image
+		closeButton.set_relief(gtk.RELIEF_NONE) #set the relief of button to none
 		closeButton.show()
 		labelBox.pack_start(pageLabel)
 		labelBox.pack_start(closeButton)
@@ -147,13 +147,14 @@ class MainWindow():
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
 		CodeEditorText.set_buffer(buffer)
-		buffer.connect('changed',self.keyPressCodeEditor) #set callback function whenever text is changed
+		buffer.connect('changed',self.TextChangedCodeEditor) #set callback function whenever text is changed
 		CodeEditorText.show()
 		CodeEditorScrolledWindow.add(CodeEditorText)
 		CodeEditorScrolledWindow.show()
 
 		#connect the close button
 		closeButton.connect("clicked", self.ClosePage, CodeEditorScrolledWindow)
+
 
 		if(label_name == 'Untitled'):
 			return [CodeEditorScrolledWindow, labelBox, None]
@@ -162,13 +163,15 @@ class MainWindow():
 	
 	#function to close the respective tab
 	def ClosePage(self, widget, label):
+		#get the index of the page that is being closed
 		index = self.CodeNotebook.page_num(label)
+		#remove and delete the page
 		self.CodeNotebook.remove_page(index)
 		del self.CodeNotebookPages[index]
 		widget.destroy()
 
 	#called when text is changed in the editor
-	def keyPressCodeEditor(self,widget):
+	def TextChangedCodeEditor(self,widget):
 		self.HighlightKeywords()
 		
 
@@ -178,7 +181,8 @@ class MainWindow():
 	def HighlightKeywords(self):
 		global keywords,tags
 		#HIGHLIGHT KEYWORDS BELOW
-		#get buffer
+
+		#get buffer of current page
 		page_num = self.CodeNotebook.get_current_page()
 		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 
@@ -212,31 +216,7 @@ class MainWindow():
 				pos = start_iter.forward_search(word,gtk.TEXT_SEARCH_TEXT_ONLY)		
 
 
-
-	def CreateIOTextBoxes(self):
-
-		#Input Output Layout Box
-		self.IOBox = gtk.HBox()
-		self.IOCodeWindow.add(self.IOBox)
-		#Input TextView inside a scrollable window
-		self.InputScrolledWindow = gtk.ScrolledWindow()
-		self.InputScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-		self.InputText = gtk.TextView()
-		self.InputScrolledWindow.add(self.InputText)
-		#OutputTextView inside a scrollable window
-		self.OutputScrolledWindow = gtk.ScrolledWindow()
-		self.OutputScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-		self.OutputText = gtk.TextView()
-		self.OutputScrolledWindow.add(self.OutputText)
-		#Horizontally Paned Window
-		self.IOPanedWindow = gtk.HPaned()
-		self.IOPanedWindow.add(self.InputScrolledWindow)
-		self.IOPanedWindow.add(self.OutputScrolledWindow)
-		#TODO need to create a function that auto sets the position when window size changes
-		self.IOPanedWindow.set_position(100)
-		#adding the panned window to IOBox
-		self.IOBox.pack_start(self.IOPanedWindow,padding = 5)
-
+	#input output text box codes below
 
 	def CreateIOLabels(self):
 
@@ -249,8 +229,40 @@ class MainWindow():
 		#Output Label
 		self.OutputLabel = gtk.Label("Output")
 		self.IOLabelBox.pack_start(self.OutputLabel)
-		
 
+	def CreateIOTextBoxes(self):
+
+		#Input Output Layout Box
+		self.IOBox = gtk.HBox()
+		self.IOCodeWindow.add(self.IOBox)
+
+		#Input TextView inside a scrollable window
+		self.InputScrolledWindow = gtk.ScrolledWindow()
+		self.InputScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		self.InputText = gtk.TextView()
+		self.InputScrolledWindow.add(self.InputText)
+
+		#OutputTextView inside a scrollable window
+		self.OutputScrolledWindow = gtk.ScrolledWindow()
+		self.OutputScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		self.OutputText = gtk.TextView()
+		self.OutputScrolledWindow.add(self.OutputText)
+
+		#Horizontally Paned Window
+		self.IOPanedWindow = gtk.HPaned()
+		self.IOPanedWindow.add(self.InputScrolledWindow)
+		self.IOPanedWindow.add(self.OutputScrolledWindow)
+
+		#TODO need to create a function that auto sets the position when window size changes
+		self.IOPanedWindow.set_position(100)
+
+		#adding the panned window to IOBox
+		self.IOBox.pack_start(self.IOPanedWindow,padding = 5)
+
+
+	#Url bar functions below
+
+	#add the url bar to the window
 	def CreateUrlBar(self):
 
 		#TopFrame containing URL bar
@@ -376,6 +388,9 @@ class MainWindow():
 	def PasteText(self,widget):
 		
 		child = self.mainWindow.get_focus()
+		#don't allow pasting in the compiler output box
+		if(child == self.CompilerText):
+			return
 		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
 		buffer.paste_clipboard(clipboard, None, True)
@@ -391,6 +406,9 @@ class MainWindow():
 	#function to cut selected text onto the clipboard
 	def CutText(self,widget):
 		
+		#don't allow cutting in the compiler output box
+		if(child == self.CompilerText):
+			return
 		child = self.mainWindow.get_focus()
 		buffer = child.get_buffer()
 		clipboard = gtk.Clipboard()
