@@ -1,25 +1,33 @@
+
 import gtk
 import os
 import subprocess
 import re
 import string
+import urllib2
+import bs4
+import webbrowser
 from htmlparser import *
+from pygoogle import pygoogle
 
-keywords = []
-tags = []
 
 #TODO
 #undo redo
 #recent files
+#save before exit dialog
 #more languages
 #more websites
-#global tags to class member
+#better way to fix open close quotes in error message for googling
+
 
 class MainWindow():
 
 	def __init__(self):
 
 		self.CodeNotebookPages = []
+		self.keywords = []
+		self.tags = []
+		self.loadKeywords()
 		self.init()
 
 	def init(self):
@@ -179,7 +187,7 @@ class MainWindow():
 	#removes all tags and reapplies them everytime a key is pressed
 	#can be improved
 	def HighlightKeywords(self):
-		global keywords,tags
+
 		#HIGHLIGHT KEYWORDS BELOW
 
 		#get buffer of current page
@@ -190,17 +198,17 @@ class MainWindow():
 		end_iter = buffer.get_end_iter()
 
 		#remove tags from buffer and tagtable
-		for tag in tags:
+		for tag in self.tags:
 			buffer.remove_tag(tag,start_iter,end_iter)
 			buffer.get_tag_table().remove(tag)
 		#set tags list to empty list
-		tags = []
+		self.tags = []
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
 
 		#highlight keywords
-		for word in keywords:
+		for word in self.keywords:
 			#search from beginning
 			start_iter = buffer.get_start_iter()
 			pos = start_iter.forward_search(word,gtk.TEXT_SEARCH_TEXT_ONLY)		
@@ -208,8 +216,8 @@ class MainWindow():
 			while(pos != None):
 				#check if the word is not a substring but an actual word
 				if(pos[1].ends_word() and pos[0].starts_word()):
-					tags.append(buffer.create_tag(None,foreground = '#ff0000'))
-					buffer.apply_tag(tags[-1], pos[0], pos[1])
+					self.tags.append(buffer.create_tag(None,foreground = '#ff0000'))
+					buffer.apply_tag(self.tags[-1], pos[0], pos[1])
 				#set iter to end position
 				start_iter = pos[1]
 				#search again
@@ -314,27 +322,41 @@ class MainWindow():
 
 		#Create file menu options
 		self.FileMenu = gtk.Menu()
-		self.NewFile = gtk.MenuItem("New")
+		self.NewEmptyFile = gtk.MenuItem("New")
 		self.OpenFile = gtk.MenuItem("Open")
+		self.RecentFiles = gtk.MenuItem("Recent Files")
 		self.SaveFile = gtk.MenuItem("Save")
 		self.SaveAsFile = gtk.MenuItem("Save As")
 		self.Quit = gtk.MenuItem("Quit")
-		self.FileMenu.append(self.NewFile)
+		self.FileMenu.append(self.NewEmptyFile)
 		self.FileMenu.append(self.OpenFile)
+		self.FileMenu.append(self.RecentFiles)
 		self.FileMenu.append(self.SaveFile)
 		self.FileMenu.append(self.SaveAsFile)
 		self.FileMenu.append(self.Quit)
 		#connect click functions
-		self.NewFile.connect("activate", self.OpenNewFileDialog)
+		self.NewEmptyFile.connect("activate", self.OpenNewEmptyFile)
 		self.OpenFile.connect("activate", self.OpenFileDialog)
 		self.SaveFile.connect("activate", self.SaveFileDialog)
 		self.SaveAsFile.connect("activate", self.SaveAsFileDialog)
 		self.Quit.connect("activate", self.QuitApp)
-		self.NewFile.show()
+		#show options
+		self.NewEmptyFile.show()
 		self.OpenFile.show()
+		self.RecentFiles.show()
 		self.SaveFile.show()
 		self.SaveAsFile.show()
 		self.Quit.show()
+
+		#create submenu for recent files
+		files = ['test1.txt','test2.txt']
+		self.RecentFilesMenu = gtk.Menu()
+		for tempFile in files:
+			fileItem = gtk.MenuItem(tempFile)
+			self.RecentFilesMenu.append(fileItem)
+			fileItem.connect("activate",self.OpenRecentFile, tempFile)
+			fileItem.show()
+		self.RecentFiles.set_submenu(self.RecentFilesMenu)
 
 		# setting hotkeys
 		accel_group = gtk.AccelGroup()
@@ -342,7 +364,7 @@ class MainWindow():
 		self.OpenFile.add_accelerator("activate", accel_group, ord('O'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.SaveFile.add_accelerator("activate", accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Quit.add_accelerator("activate", accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-		self.NewFile.add_accelerator("activate", accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.NewEmptyFile.add_accelerator("activate", accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 
 		#menu item file
 		self.FileOption = gtk.MenuItem("File")
@@ -383,6 +405,20 @@ class MainWindow():
 		#add file options to menu bar		
 		self.MenuBar.append(self.FileOption)
 		self.MenuBar.append(self.EditOption)
+
+
+	#opens the recent file
+	def OpenRecentFile(self,widget,filepath):
+
+		filename = self.GetFileName(filepath)
+		f = open(filepath)
+		text = f.read()
+		f.close()
+		page = self.CreateNotebookPage(filename, text)
+		self.CodeNotebookPages.append(page)
+		self.CodeNotebook.append_page(page[0], page[1])		
+		self.CodeNotebook.set_current_page(-1)
+
 
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
@@ -446,6 +482,7 @@ class MainWindow():
 		button.show()
 
 		self.PreferencesDialog.run()
+		self.PreferencesDialog.destroy()	
 
 	#check if value inside entry box is numeric
 	def checkOpacityEntry(self, widget):
@@ -469,15 +506,15 @@ class MainWindow():
 		self.mainWindow.set_opacity(val)
 		self.PreferencesDialog.destroy()
 		
-
-	def OpenNewFileDialog(self,widget):
+	#open an empty file and append it to the end of the notebook tabs
+	def OpenNewEmptyFile(self,widget):
 
 		page = self.CreateNotebookPage()
 		self.CodeNotebook.append_page(page[0],page[1])
 		self.CodeNotebookPages.append(page)
 		self.CodeNotebook.set_current_page(-1)
 
-
+	#create the open file dialog and open the selected file in a new tab if any
 	def OpenFileDialog(self, widget):
 
 		dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
@@ -501,6 +538,7 @@ class MainWindow():
 		self.CodeNotebook.set_current_page(-1)
 
 
+	#open the save as file dialog and save the file 
 	def SaveAsFileDialog(self, widget):
 
 		dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
@@ -526,11 +564,11 @@ class MainWindow():
 
 		dialog.destroy()
 
-
+	#close the app
 	def QuitApp(self,widget):
 		gtk.main_quit()
 
-
+	#save the file if not saved already
 	def SaveFileDialog(self, widget):
 
 		page_num = self.CodeNotebook.get_current_page()
@@ -580,9 +618,16 @@ class MainWindow():
 		self.ToolBarBox = gtk.HBox()
 		self.mainVerticalLayout.pack_start(self.ToolBarBox, fill = False, expand = False)
 		#Compile and run button
-		self.CompileRunButton = gtk.Button('Compile&Run')
+		image = gtk.Image() 
+		image.set_from_stock(gtk.STOCK_MEDIA_PLAY, gtk.ICON_SIZE_MENU)
+		self.CompileRunButton = gtk.Button()
+		self.CompileRunButton.set_image(image)
 		self.CompileRunButton.connect('clicked',self.CompileRunCode)
-		self.ToolBarBox.pack_start(self.CompileRunButton, fill = False, expand = False, padding = 5)
+		self.ToolBarBox.pack_start(self.CompileRunButton, fill = False, expand = False)
+
+		self.SearchGoogle = gtk.Button("Google Errors")		
+		self.SearchGoogle.connect('clicked',self.ShowGoogleResults)
+		self.ToolBarBox.pack_start(self.SearchGoogle, fill = False, expand = False)		
 
 	#function called when compile&run button is click
 	def CompileRunCode(self,widget):
@@ -667,34 +712,116 @@ class MainWindow():
 				buffer = gtk.TextBuffer()
 				buffer.set_text("RUNTIME ERROR : \n"+err)
 				self.CompilerText.set_buffer(buffer)
-				
+			
+			#remove the temporary code file and run file
+			stream = subprocess.Popen(['rm','a.out'])
+			stream = subprocess.Popen(['rm','tempcode.cpp'])	
 				
 		else: #show compilation error
-			print("compilation error")
+			print("compilation error") #log
 			print(err) #log
+
 			buffer = gtk.TextBuffer()
 			buffer.set_text("COMPILATION ERROR : \n"+err)
-			self.CompilerText.set_buffer(buffer)	
-			
-			
+			self.CompilerText.set_buffer(buffer)
 
-		#remove the temporary code file and run file
-		stream = subprocess.Popen(['rm','a.out'])
-		stream = subprocess.Popen(['rm','tempcode.cpp'])
+				
 
-		print('files deleted') #log		
 
-#loads keywords (currently only cpp)
-def loadKeywords():
+	#google the error and create a dialog showing the results
+	def ShowGoogleResults(self,widget):
+		
+		buffer = self.CompilerText.get_buffer()
+		err = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
+		# print(err)
 
-	global keywords
+		if(err == None or err == ''):
+			print('nothing to search') #log
+			buffer.set_text('no errors to search')
+			return
 
-	f = open('cppkeywords.txt','r')
-	keywords = f.readlines()
-	for i in range(0,len(keywords)):
-		keywords[i] = keywords[i].rstrip()
+		start = err.find('error:')
+		#if no error found then return
+		if(start == -1):
+			buffer.set_text('no errors to search')
+			return
+		start += 6
+		stop = err[start:].find('\n')
+		message = err[start:][:stop]
+
+		# Remove open and close quotes from text
+		# search better way to remove this
+		if(message.find('\xe2') >= 0):
+			message = message[:message.find('\xe2')] + message[message.find('\xe2')+1:]
+		if(message.find('\xe2') >= 0):
+			message = message[:message.find('\xe2')] + message[message.find('\xe2')+1:]
+		if(message.find('\x80') >= 0):
+			message = message[:message.find('\x80')] + message[message.find('\x80')+1:]
+		if(message.find('\x80') >= 0):
+			message = message[:message.find('\x80')] + message[message.find('\x80')+1:]
+		if(message.find('\x98') >= 0):
+			message = message[:message.find('\x98')] + message[message.find('\x98')+1:]
+		if(message.find('\x99') >= 0):
+			message = message[:message.find('\x99')] + message[message.find('\x99')+1:]
+		print("search query : ", message) #log
+		results = pygoogle(message)
+
+		url_list = results.get_urls()
+		print(url_list) #log
+
+		self.GoogleResultsDialog = gtk.Dialog("Google search results")
+		self.GoogleResultsDialog.set_default_size(300,300)
+		self.GoogleResultsDialog.set_has_separator(True)
+		
+		print("Total results  : ",str(len(url_list))) #log
+		#Hbox to hold label and opacity entry
+		for i in range(0,min(10,len(url_list))):
+			vbox = gtk.VBox()
+			title = gtk.Label(self.GetTitleUrl(url_list[i]))
+			title.show()
+			vbox.pack_start(title)
+			label_text = "<span foreground = 'blue' underline = 'low'> "+url_list[i]+" </span>"
+			label = gtk.Label(label_text)
+			label.set_use_markup(True)
+			label.set_justify(gtk.JUSTIFY_LEFT)
+			label.show()
+			button = gtk.Button()
+			button.add(label)
+			button.set_relief(gtk.RELIEF_NONE)
+			button.connect("clicked",self.OpenUrl,url_list[i])
+			button.show()
+			vbox.pack_start(button)
+			vbox.show()
+			self.GoogleResultsDialog.vbox.pack_start(vbox,padding = 5)
+
+		self.GoogleResultsDialog.run()
+		self.GoogleResultsDialog.destroy()
+
+	def GetTitleUrl(self,url):
+
+		try:
+			response = urllib2.urlopen(url)
+			source = response.read()
+			soup = bs4.BeautifulSoup(source)
+			return (soup.title.string)
+		except:
+			print("error in getting title")#log
+			return("<Page Title>")
+
+	def OpenUrl(self,widget,url):
+		webbrowser.open_new_tab(url)
+
+	#return the filename after extracting it from the filepath
+	def GetFileName(self,filepath):
+		return filepath[filepath.rfind('/')+1:]
+
+	#loads keywords (currently only cpp)
+	def loadKeywords(self):
+
+		f = open('cppkeywords.txt','r')
+		self.keywords = f.readlines()
+		for i in range(0,len(self.keywords)):
+			self.keywords[i] = self.keywords[i].rstrip()
 
 if __name__ == "__main__":
-
-	loadKeywords()
 	window = MainWindow()
