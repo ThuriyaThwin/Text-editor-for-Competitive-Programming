@@ -18,6 +18,7 @@ from pygoogle import pygoogle
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
+#output all console content to console window
 
 
 class MainWindow():
@@ -48,8 +49,11 @@ class MainWindow():
 		self.mainVerticalLayout = gtk.VBox()
 		self.mainWindow.add(self.mainVerticalLayout)
 
-		#Crete the menu bar
+		#Create the menu bar
 		self.CreateMenuBar()
+
+		#Set hotkeys
+		self.SetHotkeys()
 
 		#Create Toolbar
 		self.CreateToolBar()
@@ -77,7 +81,9 @@ class MainWindow():
 		self.CenterWindow.add(self.IOCodeWindow)
 
 		#set compiler output area
-		self.CreateCompilerBox()
+		self.CreateConsoleBox()
+
+
 
 		self.mainWindow.show_all()
 		gtk.main()
@@ -96,16 +102,16 @@ class MainWindow():
 
 
 	#Creates the compiler output window
-	def CreateCompilerBox(self):
+	def CreateConsoleBox(self):
 
 		#create a scrolled window for compiler/run output
-		self.CompilerScrolledWindow = gtk.ScrolledWindow()
-		self.CompilerScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-		self.CompilerText = gtk.TextView()
-		self.CompilerText.set_editable(False) #disable user to edit the content
-		self.CompilerScrolledWindow.add(self.CompilerText)
+		self.ConsoleScrolledWindow = gtk.ScrolledWindow()
+		self.ConsoleScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+		self.ConsoleText = gtk.TextView()
+		self.ConsoleText.set_editable(False) #disable user to edit the content
+		self.ConsoleScrolledWindow.add(self.ConsoleText)
 		#add to center window(VPaned)
-		self.CenterWindow.add(self.CompilerScrolledWindow)
+		self.CenterWindow.add(self.ConsoleScrolledWindow)
 
 	def CreateCodeEditorBox(self):
 
@@ -170,13 +176,13 @@ class MainWindow():
 			return [CodeEditorScrolledWindow, labelBox, label_name]
 	
 	#function to close the respective tab
-	def ClosePage(self, widget, label):
+	def ClosePage(self, widget, child):
 		#get the index of the page that is being closed
-		index = self.CodeNotebook.page_num(label)
+		index = self.CodeNotebook.page_num(child)
 		#remove and delete the page
 		self.CodeNotebook.remove_page(index)
 		del self.CodeNotebookPages[index]
-		widget.destroy()
+		# widget.destroy()
 
 	#called when text is changed in the editor
 	def TextChangedCodeEditor(self,widget):
@@ -320,29 +326,55 @@ class MainWindow():
 
 	def CreateMenuBar(self):
 
-		#Create file menu options
+		self.CreateFileMenuOption()
+		self.CreateEditMenuOption()
+		self.CreateViewMenuOption()
+
+		#create menu bar
+		self.MenuBar = gtk.MenuBar()
+		self.mainVerticalLayout.pack_start(self.MenuBar, fill = False, expand = False)
+		self.MenuBar.show()
+		
+		#add file options to menu bar		
+		self.MenuBar.append(self.FileOption)
+		self.MenuBar.append(self.EditOption)
+		self.MenuBar.append(self.ViewOption)
+
+	#Create file menu options
+	def CreateFileMenuOption(self):
+		
 		self.FileMenu = gtk.Menu()
 		self.NewEmptyFile = gtk.MenuItem("New")
 		self.OpenFile = gtk.MenuItem("Open")
+		self.CloseFile = gtk.MenuItem("Close")
 		self.RecentFiles = gtk.MenuItem("Recent Files")
+		separator1 = gtk.SeparatorMenuItem()
 		self.SaveFile = gtk.MenuItem("Save")
 		self.SaveAsFile = gtk.MenuItem("Save As")
+		separator2 = gtk.SeparatorMenuItem()
 		self.Quit = gtk.MenuItem("Quit")
+		#append to menu
 		self.FileMenu.append(self.NewEmptyFile)
 		self.FileMenu.append(self.OpenFile)
+		self.FileMenu.append(self.CloseFile)
 		self.FileMenu.append(self.RecentFiles)
+		self.FileMenu.append(separator1)
 		self.FileMenu.append(self.SaveFile)
 		self.FileMenu.append(self.SaveAsFile)
+		self.FileMenu.append(separator2)
 		self.FileMenu.append(self.Quit)
 		#connect click functions
 		self.NewEmptyFile.connect("activate", self.OpenNewEmptyFile)
 		self.OpenFile.connect("activate", self.OpenFileDialog)
+		self.CloseFile.connect("activate", self.CloseCurrentPage)
 		self.SaveFile.connect("activate", self.SaveFileDialog)
 		self.SaveAsFile.connect("activate", self.SaveAsFileDialog)
 		self.Quit.connect("activate", self.QuitApp)
+
 		#show options
 		self.NewEmptyFile.show()
 		self.OpenFile.show()
+		self.CloseFile.show()
 		self.RecentFiles.show()
 		self.SaveFile.show()
 		self.SaveAsFile.show()
@@ -358,53 +390,74 @@ class MainWindow():
 			fileItem.show()
 		self.RecentFiles.set_submenu(self.RecentFilesMenu)
 
-		# setting hotkeys
-		accel_group = gtk.AccelGroup()
-		self.mainWindow.add_accel_group(accel_group)
-		self.OpenFile.add_accelerator("activate", accel_group, ord('O'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-		self.SaveFile.add_accelerator("activate", accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-		self.Quit.add_accelerator("activate", accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-		self.NewEmptyFile.add_accelerator("activate", accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-
 		#menu item file
 		self.FileOption = gtk.MenuItem("File")
 		self.FileOption.show()
 		self.FileOption.set_submenu(self.FileMenu)
+		
 
-		#Create Edit Menu
+	#Create Edit Menu
+	def CreateEditMenuOption(self):
+
 		self.EditMenu = gtk.Menu()
-		self.Preferences = gtk.MenuItem("Preferences")
 		self.Cut = gtk.MenuItem("Cut")
 		self.Copy = gtk.MenuItem("Copy")
 		self.Paste = gtk.MenuItem("Paste")
+		separator = gtk.SeparatorMenuItem()
+		self.Preferences = gtk.MenuItem("Preferences")
 		self.EditMenu.append(self.Cut)
 		self.EditMenu.append(self.Copy)
 		self.EditMenu.append(self.Paste)
+		self.EditMenu.append(separator)
 		self.EditMenu.append(self.Preferences)
 		self.Cut.connect("activate",self.CutText)
 		self.Copy.connect("activate",self.CopyText)
 		self.Paste.connect("activate",self.PasteText)
-		self.Preferences.connect("activate",self.PreferencesResponse)
+		self.Preferences.connect("activate",self.OpenPreferences)
 		self.Cut.show()
 		self.Preferences.show()
-
-		self.Cut.add_accelerator("activate", accel_group, ord('X'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-		self.Copy.add_accelerator("activate", accel_group, ord('C'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
-		self.Paste.add_accelerator("activate", accel_group, ord('V'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 
 		#menu edit item
 		self.EditOption = gtk.MenuItem("Edit")
 		self.EditOption.show()
 		self.EditOption.set_submenu(self.EditMenu)
 
-		#create menu bar
-		self.MenuBar = gtk.MenuBar()
-		self.mainVerticalLayout.pack_start(self.MenuBar, fill = False, expand = False)
-		self.MenuBar.show()
+	def CreateViewMenuOption(self):
+
+		self.ViewMenu = gtk.Menu()
+		#show input outbox check item
+		self.ShowInputOutputPane = gtk.CheckMenuItem("Show Input/Output Window")
+		self.ShowInputOutputPane.set_active(True)
+		self.ShowInputOutputPane.connect("toggled",self.ToggleInputOutputWindow)
+		self.ViewMenu.append(self.ShowInputOutputPane)
+		self.ShowInputOutputPane.show()
+
+		#show console check item
+		self.ShowConsoleWindow  = gtk.CheckMenuItem("Show Console Window")
+		self.ShowConsoleWindow.set_active(True)
+		self.ShowConsoleWindow.connect("toggled",self.ToggleConsoleWindow)
+		self.ViewMenu.append(self.ShowConsoleWindow)
+		self.ShowConsoleWindow.show()
+
+		self.ViewOption = gtk.MenuItem("View")
+		self.ViewOption.show()
+		self.ViewOption.set_submenu(self.ViewMenu)
+
+	def ToggleConsoleWindow(self, widget):
+
+		if(self.ShowConsoleWindow.get_active()):
+			self.ConsoleScrolledWindow.show()
+		else:
+			self.ConsoleScrolledWindow.hide()
 		
-		#add file options to menu bar		
-		self.MenuBar.append(self.FileOption)
-		self.MenuBar.append(self.EditOption)
+	def ToggleInputOutputWindow(self, widget):
+
+		if(self.ShowInputOutputPane.get_active()):
+			self.IOLabelBox.show()
+			self.IOBox.show()
+		else:
+			self.IOLabelBox.hide()
+			self.IOBox.hide()
 
 
 	#opens the recent file
@@ -419,13 +472,19 @@ class MainWindow():
 		self.CodeNotebook.append_page(page[0], page[1])		
 		self.CodeNotebook.set_current_page(-1)
 
+	#close the current page
+	def CloseCurrentPage(self, widget):
+
+		index = self.CodeNotebook.get_current_page()
+		print(index)
+		self.CodeNotebook.remove_page(index)
 
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
 		
 		child = self.mainWindow.get_focus()
-		#don't allow pasting in the compiler output box
-		if(child == self.CompilerText):
+		#don't allow pasting in the console output box
+		if(child == self.ConsoleText):
 			return
 		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
@@ -442,16 +501,16 @@ class MainWindow():
 	#function to cut selected text onto the clipboard
 	def CutText(self,widget):
 		
-		#don't allow cutting in the compiler output box
-		if(child == self.CompilerText):
-			return
 		child = self.mainWindow.get_focus()
+		#don't allow cutting in the console output box
+		if(child == self.ConsoleText):
+			return
 		buffer = child.get_buffer()
 		clipboard = gtk.Clipboard()
 		buffer.cut_clipboard(clipboard,True)
 
 	#Response on clicking preferences in edit menu
-	def PreferencesResponse(self, widget):
+	def OpenPreferences(self, widget):
 
 		#create dialog
 		self.PreferencesDialog = gtk.Dialog("Preferences")
@@ -471,18 +530,50 @@ class MainWindow():
 		self.PreferencesDialog.vbox.pack_start(hbox,padding = 5)
 		
 
-		#add cancel button
-		button = self.PreferencesDialog.add_button("Cancel",gtk.RESPONSE_ACCEPT)
-		button.connect("clicked",self.ClosePreferences) #close the box on clicking cancel
-		button.show()
+		hbox = gtk.HBox()
+		label = gtk.Label("Tab location : ")
+		label.show()
+		hbox.pack_start(label)
+		vbox = gtk.VBox()
+		tabsTopRadio = gtk.RadioButton(None,"Top")
+		tabsTopRadio.connect("toggled",self.changeCodeNotebookTabPosition,"TOP")
+		tabsTopRadio.show()
+		vbox.pack_start(tabsTopRadio)
+		tabsLeftRadio = gtk.RadioButton(tabsTopRadio,"Left")
+		tabsLeftRadio.connect("toggled",self.changeCodeNotebookTabPosition,"LEFT")
+		tabsLeftRadio.show()
+		vbox.pack_start(tabsLeftRadio)
+		tabsRightRadio = gtk.RadioButton(tabsTopRadio,"Right")
+		tabsRightRadio.connect("toggled",self.changeCodeNotebookTabPosition,"RIGHT")
+		tabsRightRadio.show()
+		vbox.pack_start(tabsRightRadio)
+		tabsBottomRadio = gtk.RadioButton(tabsTopRadio,"Bottom")
+		tabsBottomRadio.connect("toggled",self.changeCodeNotebookTabPosition,"BOTTOM")
+		tabsBottomRadio.show()
+		vbox.pack_start(tabsBottomRadio)
+		hbox.show()
+		vbox.show()
+		hbox.pack_start(vbox)
+		self.PreferencesDialog.vbox.pack_start(hbox,padding = 5)
 
-		#add apply button
-		button = self.PreferencesDialog.add_button("Apply",gtk.RESPONSE_ACCEPT)
-		button.connect("clicked",self.ApplyPreferences)
+		#add cancel button
+		button = self.PreferencesDialog.add_button("Close",gtk.RESPONSE_ACCEPT)
+		button.connect("clicked",self.ClosePreferences) #close the box on clicking cancel
 		button.show()
 
 		self.PreferencesDialog.run()
 		self.PreferencesDialog.destroy()	
+
+	def changeCodeNotebookTabPosition(self,widget,option):
+
+		if(option == "BOTTOM"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_BOTTOM)
+		elif(option == "TOP"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_TOP)
+		elif(option == "RIGHT"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_RIGHT)
+		elif(option == "LEFT"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_LEFT)
 
 	#check if value inside entry box is numeric
 	def checkOpacityEntry(self, widget):
@@ -495,15 +586,14 @@ class MainWindow():
 		except ValueError:
 			self.PreferencesOpacityEntry.set_text('')
 
+		try:
+			val = float(self.PreferencesOpacityEntry.get_text())
+		except ValueError:
+			val = 1
+		self.mainWindow.set_opacity(val)
+
 	#close the dialog box
 	def ClosePreferences(self,widget):
-		self.PreferencesDialog.destroy()
-
-	#apply all preferences and close the box
-	def ApplyPreferences(self,widget):
-		#set opacity
-		val = float(self.PreferencesOpacityEntry.get_text())
-		self.mainWindow.set_opacity(val)
 		self.PreferencesDialog.destroy()
 		
 	#open an empty file and append it to the end of the notebook tabs
@@ -607,7 +697,19 @@ class MainWindow():
 			self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
 
 
+	# setting hotkeys
+	def SetHotkeys(self):
 
+		self.accel_group = gtk.AccelGroup()
+		self.mainWindow.add_accel_group(self.accel_group)
+		self.OpenFile.add_accelerator("activate", self.accel_group, ord('O'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.SaveFile.add_accelerator("activate", self.accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.CloseFile.add_accelerator("activate", self.accel_group, ord('W'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Quit.add_accelerator("activate", self.accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.NewEmptyFile.add_accelerator("activate", self.accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Cut.add_accelerator("activate", self.accel_group, ord('X'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Copy.add_accelerator("activate", self.accel_group, ord('C'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Paste.add_accelerator("activate", self.accel_group, ord('V'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 
 	#TOOLBAR FUNCTIONS BELOW
 
@@ -657,7 +759,7 @@ class MainWindow():
 			print("compilation successfull") #log
 			buffer = gtk.TextBuffer()
 			buffer.set_text("Compilation Successful")
-			self.CompilerText.set_buffer(buffer)
+			self.ConsoleText.set_buffer(buffer)
 
 			#set label to compiled
 			
@@ -679,7 +781,7 @@ class MainWindow():
 				print("run successfull") #log
 				buffer = gtk.TextBuffer()
 				buffer.set_text("Run Successful")
-				self.CompilerText.set_buffer(buffer)
+				self.ConsoleText.set_buffer(buffer)
 
 				#store user's output and required output
 				userOutput = output.rstrip()
@@ -698,12 +800,12 @@ class MainWindow():
 					print("output correct") #log
 					buffer = gtk.TextBuffer()
 					buffer.set_text(userOutput+"\n ******** \noutput Correct(matches)")
-					self.CompilerText.set_buffer(buffer)
+					self.ConsoleText.set_buffer(buffer)
 				else:
 					print("output incorrect") #log
 					buffer = gtk.TextBuffer()
 					buffer.set_text(userOutput+"\n ******** \noutput Incorrect (does not match)")
-					self.CompilerText.set_buffer(buffer)
+					self.ConsoleText.set_buffer(buffer)
 					
 
 			else: #show runtime error
@@ -711,7 +813,7 @@ class MainWindow():
 				print(err) #log
 				buffer = gtk.TextBuffer()
 				buffer.set_text("RUNTIME ERROR : \n"+err)
-				self.CompilerText.set_buffer(buffer)
+				self.ConsoleText.set_buffer(buffer)
 			
 			#remove the temporary code file and run file
 			stream = subprocess.Popen(['rm','a.out'])
@@ -723,7 +825,7 @@ class MainWindow():
 
 			buffer = gtk.TextBuffer()
 			buffer.set_text("COMPILATION ERROR : \n"+err)
-			self.CompilerText.set_buffer(buffer)
+			self.ConsoleText.set_buffer(buffer)
 
 				
 
@@ -731,7 +833,7 @@ class MainWindow():
 	#google the error and create a dialog showing the results
 	def ShowGoogleResults(self,widget):
 		
-		buffer = self.CompilerText.get_buffer()
+		buffer = self.ConsoleText.get_buffer()
 		err = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
 		# print(err)
 
