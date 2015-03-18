@@ -160,7 +160,7 @@ class MainWindow():
 		CodeEditorText = gtk.TextView()
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
-		CodeEditorText.set_buffer(buffer)
+		# CodeEditorText.set_buffer(buffer)
 		buffer.connect('changed',self.TextChangedCodeEditor) #set callback function whenever text is changed
 		CodeEditorText.show()
 		CodeEditorScrolledWindow.add(CodeEditorText)
@@ -182,10 +182,12 @@ class MainWindow():
 		#remove and delete the page
 		self.CodeNotebook.remove_page(index)
 		del self.CodeNotebookPages[index]
+		del self.tags[index]
 		# widget.destroy()
 
 	#called when text is changed in the editor
 	def TextChangedCodeEditor(self,widget):
+
 		self.HighlightKeywords()
 		
 
@@ -204,11 +206,15 @@ class MainWindow():
 		end_iter = buffer.get_end_iter()
 
 		#remove tags from buffer and tagtable
-		for tag in self.tags:
-			buffer.remove_tag(tag,start_iter,end_iter)
-			buffer.get_tag_table().remove(tag)
+		try:
+			for tag in self.tags[page_num]:
+				buffer.remove_tag(tag,start_iter,end_iter)
+				buffer.get_tag_table().remove(tag)
+		except IndexError:
+			self.tags.append([])
+			
 		#set tags list to empty list
-		self.tags = []
+		self.tags[page_num] = []
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
@@ -222,8 +228,8 @@ class MainWindow():
 			while(pos != None):
 				#check if the word is not a substring but an actual word
 				if(pos[1].ends_word() and pos[0].starts_word()):
-					self.tags.append(buffer.create_tag(None,foreground = '#ff0000'))
-					buffer.apply_tag(self.tags[-1], pos[0], pos[1])
+					self.tags[page_num].append(buffer.create_tag(None,foreground = '#ff0000'))
+					buffer.apply_tag(self.tags[page_num][-1], pos[0], pos[1])
 				#set iter to end position
 				start_iter = pos[1]
 				#search again
@@ -346,22 +352,22 @@ class MainWindow():
 		self.FileMenu = gtk.Menu()
 		self.NewEmptyFile = gtk.MenuItem("New")
 		self.OpenFile = gtk.MenuItem("Open")
-		self.CloseFile = gtk.MenuItem("Close")
 		self.RecentFiles = gtk.MenuItem("Recent Files")
 		separator1 = gtk.SeparatorMenuItem()
 		self.SaveFile = gtk.MenuItem("Save")
 		self.SaveAsFile = gtk.MenuItem("Save As")
 		separator2 = gtk.SeparatorMenuItem()
+		self.CloseFile = gtk.MenuItem("Close")
 		self.Quit = gtk.MenuItem("Quit")
 		#append to menu
 		self.FileMenu.append(self.NewEmptyFile)
 		self.FileMenu.append(self.OpenFile)
-		self.FileMenu.append(self.CloseFile)
 		self.FileMenu.append(self.RecentFiles)
 		self.FileMenu.append(separator1)
 		self.FileMenu.append(self.SaveFile)
 		self.FileMenu.append(self.SaveAsFile)
 		self.FileMenu.append(separator2)
+		self.FileMenu.append(self.CloseFile)
 		self.FileMenu.append(self.Quit)
 		#connect click functions
 		self.NewEmptyFile.connect("activate", self.OpenNewEmptyFile)
@@ -370,7 +376,6 @@ class MainWindow():
 		self.SaveFile.connect("activate", self.SaveFileDialog)
 		self.SaveAsFile.connect("activate", self.SaveAsFileDialog)
 		self.Quit.connect("activate", self.QuitApp)
-
 		#show options
 		self.NewEmptyFile.show()
 		self.OpenFile.show()
@@ -439,10 +444,25 @@ class MainWindow():
 		self.ViewMenu.append(self.ShowConsoleWindow)
 		self.ShowConsoleWindow.show()
 
+		#show url bar
+		self.ShowUrlBar  = gtk.CheckMenuItem("Show Url Bar")
+		self.ShowUrlBar.set_active(True)
+		self.ShowUrlBar.connect("toggled",self.ToggleUrlBar)
+		self.ViewMenu.append(self.ShowUrlBar)
+		self.ShowUrlBar.show()
+
 		self.ViewOption = gtk.MenuItem("View")
 		self.ViewOption.show()
 		self.ViewOption.set_submenu(self.ViewMenu)
 
+	#show hide url bar
+	def ToggleUrlBar(self, widget):
+		if(self.ShowUrlBar.get_active()):
+			self.UrlBox.show()
+		else:
+			self.UrlBox.hide()
+
+	#show hide console window
 	def ToggleConsoleWindow(self, widget):
 
 		if(self.ShowConsoleWindow.get_active()):
@@ -450,6 +470,7 @@ class MainWindow():
 		else:
 			self.ConsoleScrolledWindow.hide()
 		
+	#show hide input output pane/window
 	def ToggleInputOutputWindow(self, widget):
 
 		if(self.ShowInputOutputPane.get_active()):
@@ -458,7 +479,6 @@ class MainWindow():
 		else:
 			self.IOLabelBox.hide()
 			self.IOBox.hide()
-
 
 	#opens the recent file
 	def OpenRecentFile(self,widget,filepath):
@@ -476,8 +496,8 @@ class MainWindow():
 	def CloseCurrentPage(self, widget):
 
 		index = self.CodeNotebook.get_current_page()
-		print(index)
 		self.CodeNotebook.remove_page(index)
+		del self.tags[index]
 
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
@@ -594,6 +614,7 @@ class MainWindow():
 
 	#close the dialog box
 	def ClosePreferences(self,widget):
+
 		self.PreferencesDialog.destroy()
 		
 	#open an empty file and append it to the end of the notebook tabs
@@ -656,6 +677,7 @@ class MainWindow():
 
 	#close the app
 	def QuitApp(self,widget):
+
 		gtk.main_quit()
 
 	#save the file if not saved already
@@ -827,9 +849,6 @@ class MainWindow():
 			buffer.set_text("COMPILATION ERROR : \n"+err)
 			self.ConsoleText.set_buffer(buffer)
 
-				
-
-
 	#google the error and create a dialog showing the results
 	def ShowGoogleResults(self,widget):
 		
@@ -911,10 +930,12 @@ class MainWindow():
 			return("<Page Title>")
 
 	def OpenUrl(self,widget,url):
+
 		webbrowser.open_new_tab(url)
 
 	#return the filename after extracting it from the filepath
 	def GetFileName(self,filepath):
+
 		return filepath[filepath.rfind('/')+1:]
 
 	#loads keywords (currently only cpp)
