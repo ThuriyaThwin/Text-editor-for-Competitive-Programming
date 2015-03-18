@@ -1,4 +1,4 @@
-
+import ConfigParser
 import gtk
 import os
 import subprocess
@@ -28,7 +28,9 @@ class MainWindow():
 		self.CodeNotebookPages = []
 		self.keywords = []
 		self.tags = []
+		self.PreferencesDict = {}
 		self.loadKeywords()
+		self.loadPreferences()
 		self.init()
 
 	def init(self):
@@ -41,7 +43,7 @@ class MainWindow():
 		#connect the close button
 		self.mainWindow.connect('destroy' , lambda w: gtk.main_quit())
 		#set the opacity of the window
-		self.mainWindow.set_opacity(0.8)
+		self.mainWindow.set_opacity(self.PreferencesDict["opacity"])
 		#perform changes(setting the window separators) to the window when it resizes
 		self.mainWindow.connect("configure_event",self.WindowResize)
 
@@ -119,8 +121,15 @@ class MainWindow():
 		self.CodeEditorBox = gtk.HBox()
 
 		#code notebook to hold all files as tabs
-		self.CodeNotebook = gtk.Notebook()
-		self.CodeNotebook.set_tab_pos(gtk.POS_TOP)
+		self.CodeNotebook = gtk.Notebook() 
+		if(self.PreferencesDict["tab_position"] == "TOP"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_TOP)
+		elif(self.PreferencesDict["tab_position"] == "BOTTOM"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_BOTTOM)
+		elif(self.PreferencesDict["tab_position"] == "LEFT"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_LEFT)
+		elif(self.PreferencesDict["tab_position"] == "RIGHT"):
+			self.CodeNotebook.set_tab_pos(gtk.POS_RIGHT)
 		self.CodeNotebook.set_show_tabs(True)
 		self.CodeNotebook.set_show_border(True)
 		self.CodeNotebook.set_scrollable(True)
@@ -557,18 +566,26 @@ class MainWindow():
 		vbox = gtk.VBox()
 		tabsTopRadio = gtk.RadioButton(None,"Top")
 		tabsTopRadio.connect("toggled",self.changeCodeNotebookTabPosition,"TOP")
+		if(self.PreferencesDict["tab_position"] == "TOP"):
+			tabsTopRadio.set_active(True)
 		tabsTopRadio.show()
 		vbox.pack_start(tabsTopRadio)
 		tabsLeftRadio = gtk.RadioButton(tabsTopRadio,"Left")
 		tabsLeftRadio.connect("toggled",self.changeCodeNotebookTabPosition,"LEFT")
+		if(self.PreferencesDict["tab_position"] == "LEFT"):
+			tabsLeftRadio.set_active(True)
 		tabsLeftRadio.show()
 		vbox.pack_start(tabsLeftRadio)
 		tabsRightRadio = gtk.RadioButton(tabsTopRadio,"Right")
 		tabsRightRadio.connect("toggled",self.changeCodeNotebookTabPosition,"RIGHT")
+		if(self.PreferencesDict["tab_position"] == "RIGHT"):
+			tabsRightRadio.set_active(True)
 		tabsRightRadio.show()
 		vbox.pack_start(tabsRightRadio)
 		tabsBottomRadio = gtk.RadioButton(tabsTopRadio,"Bottom")
 		tabsBottomRadio.connect("toggled",self.changeCodeNotebookTabPosition,"BOTTOM")
+		if(self.PreferencesDict["tab_position"] == "BOTTOM"):
+			tabsBottomRadio.set_active(True)
 		tabsBottomRadio.show()
 		vbox.pack_start(tabsBottomRadio)
 		hbox.show()
@@ -588,12 +605,18 @@ class MainWindow():
 
 		if(option == "BOTTOM"):
 			self.CodeNotebook.set_tab_pos(gtk.POS_BOTTOM)
+			self.PreferencesDict["tab_position"] = "BOTTOM"
 		elif(option == "TOP"):
 			self.CodeNotebook.set_tab_pos(gtk.POS_TOP)
+			self.PreferencesDict["tab_position"] = "TOP"
 		elif(option == "RIGHT"):
 			self.CodeNotebook.set_tab_pos(gtk.POS_RIGHT)
+			self.PreferencesDict["tab_position"] = "RIGHT"
 		elif(option == "LEFT"):
 			self.CodeNotebook.set_tab_pos(gtk.POS_LEFT)
+			self.PreferencesDict["tab_position"] = "LEFT"
+
+		self.SavePreferences();
 
 	#check if value inside entry box is numeric
 	def checkOpacityEntry(self, widget):
@@ -610,7 +633,36 @@ class MainWindow():
 			val = float(self.PreferencesOpacityEntry.get_text())
 		except ValueError:
 			val = 1
+
 		self.mainWindow.set_opacity(val)
+		self.PreferencesDict["opacity"] = val
+		self.SavePreferences()
+
+	#write preferences to preferences file
+	def SavePreferences(self):
+
+		config = ConfigParser.RawConfigParser()
+		config.add_section('Section1')
+		config.set('Section1','opacity',self.PreferencesDict['opacity'])
+		config.set('Section1','tab_position',self.PreferencesDict['tab_position'])
+		with open('preferences.cfg', 'w') as configfile:
+			config.write(configfile)
+
+
+	def loadPreferences(self):
+
+		config = ConfigParser.RawConfigParser()
+		config.read('preferences.cfg')
+		try:
+			self.PreferencesDict["opacity"] = eval(config.get('Section1', 'opacity'))
+		except:
+			self.PreferencesDict["opacity"] = 1
+
+		try:
+			self.PreferencesDict["tab_position"] = config.get('Section1', 'tab_position')
+		except:
+			self.PreferencesDict["tab_position"] = "TOP"
+
 
 	#close the dialog box
 	def ClosePreferences(self,widget):
