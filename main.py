@@ -13,13 +13,16 @@ from pygoogle import pygoogle
 
 #TODO
 #undo redo
-#recent files
 #save before exit dialog
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
 #output all console content to console window
 
+
+#fixed
+#fixed highlighting error for new file
+#recent files
 
 class MainWindow():
 
@@ -146,11 +149,11 @@ class MainWindow():
 		self.IOCodeWindow.add(self.CodeEditorBox)
 
 	#creates a page for the codenotebook
-	def CreateNotebookPage(self, label_name = 'Untitled', text = ''):
+	def CreateNotebookPage(self, file_path = '/Untitled', text = ''):
 
 		#Hbox that makes up the tab label
 		labelBox = gtk.HBox()
-		pageLabel = gtk.Label(label_name) #tab label
+		pageLabel = gtk.Label(self.GetFileName(file_path)) #tab label
 		pageLabel.show()		
 		image = gtk.Image() #image of cross button
 		image.set_from_stock(gtk.STOCK_CLOSE, gtk.ICON_SIZE_MENU)
@@ -178,25 +181,37 @@ class MainWindow():
 		#connect the close button
 		closeButton.connect("clicked", self.ClosePage, CodeEditorScrolledWindow)
 
+		#append a list to hold tags of the file
+		self.tags.append([])
 
-		if(label_name == 'Untitled'):
-			return [CodeEditorScrolledWindow, labelBox, None]
+		if(file_path == '/Untitled'):
+			return [CodeEditorScrolledWindow, labelBox, None, True] #[ scrolledwindow object, labelbox object, filepath, save state]
 		else:
-			return [CodeEditorScrolledWindow, labelBox, label_name]
+			return [CodeEditorScrolledWindow, labelBox, file_path, True]
 	
 	#function to close the respective tab
 	def ClosePage(self, widget, child):
+		
 		#get the index of the page that is being closed
 		index = self.CodeNotebook.page_num(child)
 		#remove and delete the page
+		filepath = self.CodeNotebookPages[index][2]
 		self.CodeNotebook.remove_page(index)
 		del self.CodeNotebookPages[index]
 		del self.tags[index]
-		# widget.destroy()
+		if(filepath != None):
+			try:
+				self.PreferencesDict['recent_files_list'].remove(filepath)
+			except ValueError:
+				pass
+			self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
+			self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+			self.SavePreferences()
+			self.SetRecentFilesMenu()
+
 
 	#called when text is changed in the editor
 	def TextChangedCodeEditor(self,widget):
-
 		self.HighlightKeywords()
 		
 
@@ -207,8 +222,8 @@ class MainWindow():
 
 		#HIGHLIGHT KEYWORDS BELOW
 
-		#get buffer of current page
 		page_num = self.CodeNotebook.get_current_page()
+		#get buffer of page
 		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
 
 		start_iter = buffer.get_start_iter()
@@ -221,7 +236,7 @@ class MainWindow():
 				buffer.get_tag_table().remove(tag)
 		except IndexError:
 			self.tags.append([])
-			
+
 		#set tags list to empty list
 		self.tags[page_num] = []
 
@@ -394,21 +409,25 @@ class MainWindow():
 		self.SaveAsFile.show()
 		self.Quit.show()
 
-		#create submenu for recent files
-		files = ['test1.txt','test2.txt']
-		self.RecentFilesMenu = gtk.Menu()
-		for tempFile in files:
-			fileItem = gtk.MenuItem(tempFile)
-			self.RecentFilesMenu.append(fileItem)
-			fileItem.connect("activate",self.OpenRecentFile, tempFile)
-			fileItem.show()
-		self.RecentFiles.set_submenu(self.RecentFilesMenu)
+		#set the recent files menu
+		self.SetRecentFilesMenu()		
 
 		#menu item file
 		self.FileOption = gtk.MenuItem("File")
 		self.FileOption.show()
 		self.FileOption.set_submenu(self.FileMenu)
-		
+	
+	#creates the recent files menu
+	#also called when a tab is closed to refresh recent files list
+	def SetRecentFilesMenu(self):
+
+		self.RecentFilesMenu = gtk.Menu()
+		for tempFile in self.PreferencesDict['recent_files_list']:
+			fileItem = gtk.MenuItem(self.GetFileName(tempFile))
+			self.RecentFilesMenu.append(fileItem)
+			fileItem.connect("activate",self.OpenRecentFile, self.GetFileName(tempFile))
+			fileItem.show()
+		self.RecentFiles.set_submenu(self.RecentFilesMenu)
 
 	#Create Edit Menu
 	def CreateEditMenuOption(self):
@@ -506,7 +525,14 @@ class MainWindow():
 
 		index = self.CodeNotebook.get_current_page()
 		self.CodeNotebook.remove_page(index)
+		filepath = self.CodeNotebookPages[index]
 		del self.tags[index]
+		if(filepath != None):
+			self.PreferencesDict['recent_files_list'].remove(filepath)
+			self.PreferencesDict['recent_files_list'] = [file_path] + self.PreferencesDict['recent_files_list']
+			self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+			self.SavePreferences()
+			self.SetRecentFilesMenu()
 
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
@@ -552,41 +578,47 @@ class MainWindow():
 		hbox.pack_start(label)
 		#opacity entry box
 		self.PreferencesOpacityEntry = gtk.Entry()
+		self.PreferencesOpacityEntry.set_text(str(self.PreferencesDict['opacity']))
 		self.PreferencesOpacityEntry.connect('changed', self.checkOpacityEntry) #connect to function to validate values
 		self.PreferencesOpacityEntry.show()
 		hbox.pack_start(self.PreferencesOpacityEntry)
 		hbox.show()
 		self.PreferencesDialog.vbox.pack_start(hbox,padding = 5)
 		
-
+		#create radio buttons for tab position
 		hbox = gtk.HBox()
-		label = gtk.Label("Tab location : ")
+		label = gtk.Label("Tab Position : ")
 		label.show()
 		hbox.pack_start(label)
 		vbox = gtk.VBox()
 		tabsTopRadio = gtk.RadioButton(None,"Top")
 		tabsTopRadio.connect("toggled",self.changeCodeNotebookTabPosition,"TOP")
+		#set to marked if set by user
 		if(self.PreferencesDict["tab_position"] == "TOP"):
 			tabsTopRadio.set_active(True)
 		tabsTopRadio.show()
+
 		vbox.pack_start(tabsTopRadio)
 		tabsLeftRadio = gtk.RadioButton(tabsTopRadio,"Left")
 		tabsLeftRadio.connect("toggled",self.changeCodeNotebookTabPosition,"LEFT")
 		if(self.PreferencesDict["tab_position"] == "LEFT"):
 			tabsLeftRadio.set_active(True)
 		tabsLeftRadio.show()
+
 		vbox.pack_start(tabsLeftRadio)
 		tabsRightRadio = gtk.RadioButton(tabsTopRadio,"Right")
 		tabsRightRadio.connect("toggled",self.changeCodeNotebookTabPosition,"RIGHT")
 		if(self.PreferencesDict["tab_position"] == "RIGHT"):
 			tabsRightRadio.set_active(True)
 		tabsRightRadio.show()
+
 		vbox.pack_start(tabsRightRadio)
 		tabsBottomRadio = gtk.RadioButton(tabsTopRadio,"Bottom")
 		tabsBottomRadio.connect("toggled",self.changeCodeNotebookTabPosition,"BOTTOM")
 		if(self.PreferencesDict["tab_position"] == "BOTTOM"):
 			tabsBottomRadio.set_active(True)
 		tabsBottomRadio.show()
+
 		vbox.pack_start(tabsBottomRadio)
 		hbox.show()
 		vbox.show()
@@ -601,6 +633,7 @@ class MainWindow():
 		self.PreferencesDialog.run()
 		self.PreferencesDialog.destroy()	
 
+	#changes the position of the tab to the value of option
 	def changeCodeNotebookTabPosition(self,widget,option):
 
 		if(option == "BOTTOM"):
@@ -615,11 +648,11 @@ class MainWindow():
 		elif(option == "LEFT"):
 			self.CodeNotebook.set_tab_pos(gtk.POS_LEFT)
 			self.PreferencesDict["tab_position"] = "LEFT"
-
 		self.SavePreferences();
 
 	#check if value inside entry box is numeric
 	def checkOpacityEntry(self, widget):
+
 		try:
 			val = float(self.PreferencesOpacityEntry.get_text())
 			if(val<0):
@@ -628,12 +661,10 @@ class MainWindow():
 				self.PreferencesOpacityEntry.set_text('1')
 		except ValueError:
 			self.PreferencesOpacityEntry.set_text('')
-
 		try:
 			val = float(self.PreferencesOpacityEntry.get_text())
 		except ValueError:
 			val = 1
-
 		self.mainWindow.set_opacity(val)
 		self.PreferencesDict["opacity"] = val
 		self.SavePreferences()
@@ -645,10 +676,11 @@ class MainWindow():
 		config.add_section('Section1')
 		config.set('Section1','opacity',self.PreferencesDict['opacity'])
 		config.set('Section1','tab_position',self.PreferencesDict['tab_position'])
+		config.set('Section1','recent_files_list',self.PreferencesDict['recent_files_list'])
 		with open('preferences.cfg', 'w') as configfile:
 			config.write(configfile)
 
-
+	#load the stored preferences
 	def loadPreferences(self):
 
 		config = ConfigParser.RawConfigParser()
@@ -657,12 +689,14 @@ class MainWindow():
 			self.PreferencesDict["opacity"] = eval(config.get('Section1', 'opacity'))
 		except:
 			self.PreferencesDict["opacity"] = 1
-
 		try:
 			self.PreferencesDict["tab_position"] = config.get('Section1', 'tab_position')
 		except:
 			self.PreferencesDict["tab_position"] = "TOP"
-
+		try:
+			self.PreferencesDict["recent_files_list"] = eval(config.get('Section1','recent_files_list'))
+		except:
+			self.PreferencesDict["recent_files_list"] = []
 
 	#close the dialog box
 	def ClosePreferences(self,widget):
@@ -686,19 +720,23 @@ class MainWindow():
 		response = dialog.run()
 		if response == gtk.RESPONSE_OK:
 
-			filestream = open(dialog.get_filename())
-			filename = dialog.get_filename()
-			text = filestream.read()
-			filestream.close()
+			filestream = open(dialog.get_filename()) #open stream to read file
+			filepath = dialog.get_filename() #extract filename
+			text = filestream.read() #extract text from file stream
+			filestream.close() #close stream
 
-			page = self.CreateNotebookPage(filename[filename.rfind('/')+1:], text)
+			#create the page and add the text to the page
+			page = self.CreateNotebookPage(filepath, text)
+			#append page details to notebook list
 			self.CodeNotebookPages.append(page)
+			#append the page into the code notebook(set of tabs)
 			self.CodeNotebook.append_page(page[0], page[1])		
 
 		elif response == gtk.RESPONSE_CANCEL:
 			print('Closed, no files selected') #log
 		dialog.destroy()
 		self.CodeNotebook.set_current_page(-1)
+		self.HighlightKeywords()
 
 
 	#open the save as file dialog and save the file 
@@ -711,7 +749,7 @@ class MainWindow():
 		if response == gtk.RESPONSE_OK:
 
 		    filestream = open(dialog.get_filename(),'w')
-		    filename = dialog.get_filename()
+		    filepath = dialog.get_filename()
 
 		    page_num = self.CodeNotebook.get_current_page()
 		    buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
@@ -719,8 +757,8 @@ class MainWindow():
 		    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		    filestream.close()
 
-		    self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
-		    self.CodeNotebookPages[page_num][2] = filename[filename.rfind('/')+1:]
+		    self.CodeNotebookPages[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
+		    self.CodeNotebookPages[page_num][2] = filepath
 
 		elif response == gtk.RESPONSE_CANCEL:
 		    print('Closed, no files selected') #log
@@ -746,7 +784,7 @@ class MainWindow():
 			response = dialog.run()
 			if response == gtk.RESPONSE_OK:
 				filestream = open(dialog.get_filename(),'w')
-				filename = dialog.get_filename()
+				filepath = dialog.get_filename()
 
 				page_num = self.CodeNotebook.get_current_page()
 				print("\ncurrent page : "+str(page_num)+'\n')
@@ -755,7 +793,7 @@ class MainWindow():
 				filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 				filestream.close()
 
-				self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
+				self.CodeNotebookPages[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
 			elif response == gtk.RESPONSE_CANCEL:
 				print('Closed, no files selected') #log
 			dialog.destroy()
@@ -768,7 +806,7 @@ class MainWindow():
 			filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 			filestream.close()
 
-			self.CodeNotebookPages[page_num][1].get_children()[0].set_label(filename[filename.rfind('/')+1:])
+			self.CodeNotebookPages[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
 
 
 	# setting hotkeys
