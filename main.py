@@ -16,10 +16,14 @@ from pygoogle import pygoogle
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
-#output all console content to console window
+#auto indentation
+#background colors/ themes
+#line numbers
 
-#added
-#save before exit dialog
+#added/fixed
+#highlighting not working
+#ctrlshift t dissappearing on ctrl w
+#output all console content to console window
 
 class MainWindow():
 
@@ -415,12 +419,11 @@ class MainWindow():
 		self.SaveFile.show()
 		self.SaveAsFile.show()
 		self.Quit.show()
-
 		
 		#create the reopen last file menu item
-		self.ReopenLastFileItem = gtk.MenuItem("Reopen Last")
-		self.ReopenLastFileItem.connect("activate", self.ReopenLastFile)
-		self.ReopenLastFileItem.show()
+		# self.ReopenLastFileItem = gtk.MenuItem("Reopen Last")
+		# self.ReopenLastFileItem.connect("activate", self.ReopenLastFile)
+		# self.ReopenLastFileItem.show()
 		#set the recent files menu
 		self.SetRecentFilesMenu()		
 
@@ -434,8 +437,15 @@ class MainWindow():
 	def SetRecentFilesMenu(self):
 
 		self.RecentFilesMenu = gtk.Menu()
+		self.ReopenLastFileItem = gtk.MenuItem("Reopen Last")
+		self.ReopenLastFileItem.connect("activate", self.ReopenLastFile)
+		try:
+			self.ReopenLastFileItem.add_accelerator("activate", self.accel_group, ord('T'), gtk.gdk.CONTROL_MASK | gtk.gdk.SHIFT_MASK, gtk.ACCEL_VISIBLE) 
+		except AttributeError:
+			pass
+		self.ReopenLastFileItem.show()
 		self.RecentFilesMenu.append(self.ReopenLastFileItem)
-		
+		# self.ReopenLastFileItem.show()
 
 		separator = gtk.SeparatorMenuItem()
 		self.RecentFilesMenu.append(separator)
@@ -446,6 +456,7 @@ class MainWindow():
 			fileItem.connect("activate",self.OpenRecentFile, self.GetFileName(tempFile))
 			fileItem.show()
 		self.RecentFiles.set_submenu(self.RecentFilesMenu)
+
 
 	#Create Edit Menu
 	def CreateEditMenuOption(self):
@@ -546,6 +557,7 @@ class MainWindow():
 		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.append_page(page[0], page[1])		
 		self.CodeNotebook.set_current_page(-1)
+		self.HighlightKeywords()
 
 
 	#close the current page
@@ -952,6 +964,11 @@ class MainWindow():
 		codefile.write(text)
 		codefile.close()
 
+		#clear console window
+		buffer = self.ConsoleText.get_buffer()
+		buffer.set_text('')
+
+
 		#set label to compiling
 		
 
@@ -965,9 +982,8 @@ class MainWindow():
 		if(output == '' and err == ''):
 
 			print("compilation successfull") #log
-			buffer = gtk.TextBuffer()
-			buffer.set_text("Compilation Successful")
-			self.ConsoleText.set_buffer(buffer)
+			buffer = self.ConsoleText.get_buffer()
+			buffer.insert(buffer.get_end_iter(), "Compilation Successful\n*******\n")
 
 			#set label to compiled
 			
@@ -987,9 +1003,8 @@ class MainWindow():
 			if(err == ''):
 
 				print("run successfull") #log
-				buffer = gtk.TextBuffer()
-				buffer.set_text("Run Successful")
-				self.ConsoleText.set_buffer(buffer)
+				buffer = self.ConsoleText.get_buffer()
+				buffer.insert(buffer.get_end_iter(), "Run Successful\n*******\n")
 
 				#store user's output and required output
 				userOutput = output.rstrip()
@@ -1006,22 +1021,19 @@ class MainWindow():
 				#compare both outputs and set label accordingly
 				if(userOutput == reqOutput):
 					print("output correct") #log
-					buffer = gtk.TextBuffer()
-					buffer.set_text(userOutput+"\n ******** \noutput Correct(matches)")
-					self.ConsoleText.set_buffer(buffer)
+					buffer = self.ConsoleText.get_buffer()
+					buffer.insert(buffer.get_end_iter(), userOutput+"\n*******\noutput Correct(matches)")
 				else:
 					print("output incorrect") #log
-					buffer = gtk.TextBuffer()
-					buffer.set_text(userOutput+"\n ******** \noutput Incorrect (does not match)")
-					self.ConsoleText.set_buffer(buffer)
-					
+					buffer = self.ConsoleText.get_buffer()
+					buffer.insert(buffer.get_end_iter(), userOutput+"\n*******\noutput Incorrect (does not match)")
+
 
 			else: #show runtime error
 				print("runtime error")
 				print(err) #log
-				buffer = gtk.TextBuffer()
-				buffer.set_text("RUNTIME ERROR : \n"+err)
-				self.ConsoleText.set_buffer(buffer)
+				buffer = self.ConsoleText.get_buffer()
+				buffer.insert(buffer.get_end_iter(), "RUNTIME ERROR : \n"+err)
 			
 			#remove the temporary code file and run file
 			stream = subprocess.Popen(['rm','a.out'])
@@ -1031,9 +1043,11 @@ class MainWindow():
 			print("compilation error") #log
 			print(err) #log
 
-			buffer = gtk.TextBuffer()
-			buffer.set_text("COMPILATION ERROR : \n"+err)
-			self.ConsoleText.set_buffer(buffer)
+			# buffer = gtk.TextBuffer()
+			# buffer.set_text("COMPILATION ERROR : \n"+err)
+			# self.ConsoleText.set_buffer(buffer)
+			buffer = self.ConsoleText.get_buffer()
+			buffer.insert(buffer.get_end_iter(), "COMPILATION ERROR : \n"+err)
 
 	#google the error and create a dialog showing the results
 	def ShowGoogleResults(self,widget):
