@@ -13,25 +13,23 @@ from pygoogle import pygoogle
 
 #TODO
 #undo redo
-#save before exit dialog
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
 #output all console content to console window
 
-
-#fixed
-#fixed highlighting error for new file
-#recent files
+#added
+#save before exit dialog
 
 class MainWindow():
 
 	def __init__(self):
 
-		self.CodeNotebookPages = []
-		self.keywords = []
-		self.tags = []
-		self.PreferencesDict = {}
+		self.CodeNotebookPageVals = [] #list of lists to hold values for each page in the notebook [ scrolledwindow object, labelbox object, filepath, save state]
+		self.keywords = [] #to hold list of keywords to highlight
+		self.tags = [] #list to hold list of tags added to all the pages
+		self.PreferencesDict = {} #dictionary to load/save preferences to
+		self.PreviousFileIndex = 0 #index of the previous file to open (needs working)
 		self.loadKeywords()
 		self.loadPreferences()
 		self.init()
@@ -140,7 +138,7 @@ class MainWindow():
 
 		#create and add a notebook page
 		page = self.CreateNotebookPage()
-		self.CodeNotebookPages.append(page)
+		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.append_page(page[0], page[1])
 
 		#add notebook to box
@@ -194,24 +192,33 @@ class MainWindow():
 		
 		#get the index of the page that is being closed
 		index = self.CodeNotebook.page_num(child)
-		#remove and delete the page
-		filepath = self.CodeNotebookPages[index][2]
-		self.CodeNotebook.remove_page(index)
-		del self.CodeNotebookPages[index]
-		del self.tags[index]
-		if(filepath != None):
-			try:
-				self.PreferencesDict['recent_files_list'].remove(filepath)
-			except ValueError:
-				pass
-			self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
-			self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
-			self.SavePreferences()
-			self.SetRecentFilesMenu()
+
+		#ask to save if not saved
+		if(not self.CodeNotebookPageVals[index][3]):
+			if(not self.ConfirmSaveDialog(index)):
+				return
+		else:
+			#remove and delete the page
+			filepath = self.CodeNotebookPageVals[index][2]
+			self.CodeNotebook.remove_page(index)
+			del self.CodeNotebookPageVals[index]
+			del self.tags[index]
+			if(filepath != None):
+				try:
+					self.PreferencesDict['recent_files_list'].remove(filepath)
+				except ValueError:
+					pass
+				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
+				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+				self.SavePreferences()
+				self.SetRecentFilesMenu()
+			self.PreviousFileIndex = 0
 
 
 	#called when text is changed in the editor
 	def TextChangedCodeEditor(self,widget):
+		page_num = self.CodeNotebook.get_current_page()
+		self.CodeNotebookPageVals[page_num][3] = False
 		self.HighlightKeywords()
 		
 
@@ -224,7 +231,7 @@ class MainWindow():
 
 		page_num = self.CodeNotebook.get_current_page()
 		#get buffer of page
-		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
@@ -409,6 +416,11 @@ class MainWindow():
 		self.SaveAsFile.show()
 		self.Quit.show()
 
+		
+		#create the reopen last file menu item
+		self.ReopenLastFileItem = gtk.MenuItem("Reopen Last")
+		self.ReopenLastFileItem.connect("activate", self.ReopenLastFile)
+		self.ReopenLastFileItem.show()
 		#set the recent files menu
 		self.SetRecentFilesMenu()		
 
@@ -422,6 +434,12 @@ class MainWindow():
 	def SetRecentFilesMenu(self):
 
 		self.RecentFilesMenu = gtk.Menu()
+		self.RecentFilesMenu.append(self.ReopenLastFileItem)
+		
+
+		separator = gtk.SeparatorMenuItem()
+		self.RecentFilesMenu.append(separator)
+		print("recent_files_list", self.PreferencesDict['recent_files_list'])
 		for tempFile in self.PreferencesDict['recent_files_list']:
 			fileItem = gtk.MenuItem(self.GetFileName(tempFile))
 			self.RecentFilesMenu.append(fileItem)
@@ -483,8 +501,17 @@ class MainWindow():
 		self.ViewOption.show()
 		self.ViewOption.set_submenu(self.ViewMenu)
 
+	#reopen the previous file (hotkey function)
+	def ReopenLastFile(self, widget):
+		
+		filepath = self.PreferencesDict['recent_files_list'][self.PreviousFileIndex]
+		self.OpenRecentFile(None, filepath)
+		self.PreviousFileIndex += 1
+
+
 	#show hide url bar
 	def ToggleUrlBar(self, widget):
+
 		if(self.ShowUrlBar.get_active()):
 			self.UrlBox.show()
 		else:
@@ -516,23 +543,34 @@ class MainWindow():
 		text = f.read()
 		f.close()
 		page = self.CreateNotebookPage(filename, text)
-		self.CodeNotebookPages.append(page)
+		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.append_page(page[0], page[1])		
 		self.CodeNotebook.set_current_page(-1)
+
 
 	#close the current page
 	def CloseCurrentPage(self, widget):
 
 		index = self.CodeNotebook.get_current_page()
-		self.CodeNotebook.remove_page(index)
-		filepath = self.CodeNotebookPages[index]
-		del self.tags[index]
-		if(filepath != None):
-			self.PreferencesDict['recent_files_list'].remove(filepath)
-			self.PreferencesDict['recent_files_list'] = [file_path] + self.PreferencesDict['recent_files_list']
-			self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
-			self.SavePreferences()
-			self.SetRecentFilesMenu()
+		print(self.CodeNotebookPageVals)
+		if(not self.CodeNotebookPageVals[index][3]):
+			if(not self.ConfirmSaveDialog(index)):
+				return
+		else:
+			filepath = self.CodeNotebookPageVals[index][2]
+			self.CodeNotebook.remove_page(index)
+			del self.tags[index]
+			if(filepath != None):
+				try:
+					self.PreferencesDict['recent_files_list'].remove(filepath)
+				except ValueError:
+					pass
+				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
+				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+				self.SavePreferences()
+				self.SetRecentFilesMenu()
+			self.PreviousFileIndex = 0
+
 
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
@@ -708,8 +746,63 @@ class MainWindow():
 
 		page = self.CreateNotebookPage()
 		self.CodeNotebook.append_page(page[0],page[1])
-		self.CodeNotebookPages.append(page)
+		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.set_current_page(-1)
+
+
+	def ConfirmSaveDialog(self, index):
+
+		#TODO
+		dialogWindow = gtk.Dialog("Preferences", None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+										 (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_SAVE, gtk.RESPONSE_OK))
+		dialogWindow.set_has_separator(True)
+		dialogWindow.set_default_response(gtk.RESPONSE_YES)
+		hbox = gtk.HBox()
+		label = gtk.Label("Save before Quitting?")
+		label.show()
+		hbox.show()
+		hbox.pack_start(label)
+		dialogWindow.vbox.pack_start(hbox, padding = 5)
+
+		response = dialogWindow.run()
+
+		if(response == gtk.RESPONSE_NO):
+			print("close without save")
+			filepath = self.CodeNotebookPageVals[index][2]
+			self.CodeNotebook.remove_page(index)
+			del self.CodeNotebookPageVals[index]
+			del self.tags[index]
+			if(filepath != None):
+				try:
+					self.PreferencesDict['recent_files_list'].remove(filepath)
+				except ValueError:
+					pass
+				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
+				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+				self.SavePreferences()
+				self.SetRecentFilesMenu()
+			self.PreviousFileIndex = 0
+		elif(response == gtk.RESPONSE_CANCEL):
+			print("Dont close")
+		elif(response == gtk.RESPONSE_OK):
+			print("save file")
+			self.SaveFileDialog(None, page_num = index)
+			filepath = self.CodeNotebookPageVals[index][2]
+			self.CodeNotebook.remove_page(index)
+			del self.CodeNotebookPageVals[index]
+			del self.tags[index]
+			if(filepath != None):
+				try:
+					self.PreferencesDict['recent_files_list'].remove(filepath)
+				except ValueError:
+					pass
+				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
+				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+				self.SavePreferences()
+				self.SetRecentFilesMenu()
+			self.PreviousFileIndex = 0
+		dialogWindow.destroy()
+
 
 	#create the open file dialog and open the selected file in a new tab if any
 	def OpenFileDialog(self, widget):
@@ -728,7 +821,7 @@ class MainWindow():
 			#create the page and add the text to the page
 			page = self.CreateNotebookPage(filepath, text)
 			#append page details to notebook list
-			self.CodeNotebookPages.append(page)
+			self.CodeNotebookPageVals.append(page)
 			#append the page into the code notebook(set of tabs)
 			self.CodeNotebook.append_page(page[0], page[1])		
 
@@ -752,13 +845,13 @@ class MainWindow():
 		    filepath = dialog.get_filename()
 
 		    page_num = self.CodeNotebook.get_current_page()
-		    buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+		    buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
 
 		    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		    filestream.close()
 
-		    self.CodeNotebookPages[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
-		    self.CodeNotebookPages[page_num][2] = filepath
+		    self.CodeNotebookPageVals[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
+		    self.CodeNotebookPageVals[page_num][2] = filepath
 
 		elif response == gtk.RESPONSE_CANCEL:
 		    print('Closed, no files selected') #log
@@ -771,13 +864,14 @@ class MainWindow():
 		gtk.main_quit()
 
 	#save the file if not saved already
-	def SaveFileDialog(self, widget):
+	def SaveFileDialog(self, widget, page_num = None):
 
-		page_num = self.CodeNotebook.get_current_page()
-		print(self.CodeNotebookPages[page_num])
-		filename =  self.CodeNotebookPages[page_num][2]
+		if(page_num == None):
+			page_num = self.CodeNotebook.get_current_page()
+		print(self.CodeNotebookPageVals[page_num])
+		filepath =  self.CodeNotebookPageVals[page_num][2]
 
-		if(filename == None):
+		if(filepath == None):
 			dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
 											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
 			dialog.set_default_response(gtk.RESPONSE_OK)
@@ -787,26 +881,26 @@ class MainWindow():
 				filepath = dialog.get_filename()
 
 				page_num = self.CodeNotebook.get_current_page()
-				print("\ncurrent page : "+str(page_num)+'\n')
-				buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+				# print("\ncurrent page : "+str(page_num)+'\n')
+				buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
 
 				filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 				filestream.close()
 
-				self.CodeNotebookPages[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
+				self.CodeNotebookPageVals[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
 			elif response == gtk.RESPONSE_CANCEL:
 				print('Closed, no files selected') #log
 			dialog.destroy()
 		else:
-			filestream = open(filename,'w')
+			filestream = open(filepath,'w')
 			
 			page_num = self.CodeNotebook.get_current_page()
-			buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+			buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
 			
 			filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 			filestream.close()
 
-			self.CodeNotebookPages[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
+			self.CodeNotebookPageVals[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
 
 
 	# setting hotkeys
@@ -822,6 +916,8 @@ class MainWindow():
 		self.Cut.add_accelerator("activate", self.accel_group, ord('X'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Copy.add_accelerator("activate", self.accel_group, ord('C'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Paste.add_accelerator("activate", self.accel_group, ord('V'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.ReopenLastFileItem.add_accelerator("activate", self.accel_group, ord('T'), gtk.gdk.CONTROL_MASK | gtk.gdk.SHIFT_MASK, gtk.ACCEL_VISIBLE) 
+
 
 	#TOOLBAR FUNCTIONS BELOW
 
@@ -849,7 +945,7 @@ class MainWindow():
 		#write code to file
 		codefile = open('tempcode.cpp','w')
 		page_num = self.CodeNotebook.get_current_page()
-		buffer = self.CodeNotebookPages[page_num][0].get_children()[0].get_buffer()
+		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
 		text = buffer.get_text(start_iter,end_iter,True)
