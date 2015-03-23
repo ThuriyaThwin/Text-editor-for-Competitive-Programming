@@ -19,7 +19,6 @@ from pygoogle import pygoogle
 #better way to fix open close quotes in error message for googling
 #auto indentation
 #background colors/ themes
-#fix scrolling on line numbers 
 
 
 class MainWindow():
@@ -172,6 +171,10 @@ class MainWindow():
 		#code editor text object
 		CodeEditorText = gtksourceview2.View()
 		CodeEditorText.set_show_line_numbers(True)
+		CodeEditorText.set_show_line_marks(True)
+		CodeEditorText.set_auto_indent(True)
+		CodeEditorText.set_show_right_margin(True)
+		CodeEditorText.set_smart_home_end(True)
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
 		# CodeEditorText.set_buffer(buffer)
