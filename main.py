@@ -7,6 +7,7 @@ import string
 import urllib2
 import bs4
 import webbrowser
+import gtksourceview2
 from htmlparser import *
 from pygoogle import pygoogle
 
@@ -18,12 +19,8 @@ from pygoogle import pygoogle
 #better way to fix open close quotes in error message for googling
 #auto indentation
 #background colors/ themes
-#line numbers
+#fix scrolling on line numbers 
 
-#added/fixed
-#highlighting not working
-#ctrlshift t dissappearing on ctrl w
-#output all console content to console window
 
 class MainWindow():
 
@@ -125,6 +122,8 @@ class MainWindow():
 		#Box to hold CodeNotebook
 		self.CodeEditorBox = gtk.HBox()
 
+		
+
 		#code notebook to hold all files as tabs
 		self.CodeNotebook = gtk.Notebook() 
 		if(self.PreferencesDict["tab_position"] == "TOP"):
@@ -171,7 +170,8 @@ class MainWindow():
 		CodeEditorScrolledWindow = gtk.ScrolledWindow()
 		CodeEditorScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 		#code editor text object
-		CodeEditorText = gtk.TextView()
+		CodeEditorText = gtksourceview2.View()
+		CodeEditorText.set_show_line_numbers(True)
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
 		# CodeEditorText.set_buffer(buffer)
@@ -191,6 +191,7 @@ class MainWindow():
 		else:
 			return [CodeEditorScrolledWindow, labelBox, file_path, True]
 	
+
 	#function to close the respective tab
 	def ClosePage(self, widget, child):
 		
@@ -877,12 +878,12 @@ class MainWindow():
 
 	#save the file if not saved already
 	def SaveFileDialog(self, widget, page_num = None):
-
+		print("savefiledialog")
 		if(page_num == None):
 			page_num = self.CodeNotebook.get_current_page()
 		print(self.CodeNotebookPageVals[page_num])
 		filepath =  self.CodeNotebookPageVals[page_num][2]
-
+		print("filepaht :",filepath)
 		if(filepath == None):
 			dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
 											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
@@ -891,7 +892,7 @@ class MainWindow():
 			if response == gtk.RESPONSE_OK:
 				filestream = open(dialog.get_filename(),'w')
 				filepath = dialog.get_filename()
-
+				self.CodeNotebookPageVals[page_num][2] = filepath
 				page_num = self.CodeNotebook.get_current_page()
 				# print("\ncurrent page : "+str(page_num)+'\n')
 				buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
