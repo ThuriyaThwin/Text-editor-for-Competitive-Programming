@@ -1,23 +1,24 @@
 import ConfigParser
 import gtk
+import gobject
 import os
 import subprocess
 import re
 import string
 import urllib2
 import bs4
+import thread
+import threading
 import webbrowser
 import gtksourceview2
 from htmlparser import *
 from pygoogle import pygoogle
-
 
 #TODO
 #undo redo
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
-#auto indentation
 #background colors/ themes
 
 
@@ -171,7 +172,7 @@ class MainWindow():
 		#code editor text object
 		CodeEditorText = gtksourceview2.View()
 		CodeEditorText.set_show_line_numbers(True)
-		CodeEditorText.set_show_line_marks(True)
+		# CodeEditorText.set_show_line_marks(True)
 		CodeEditorText.set_auto_indent(True)
 		CodeEditorText.set_show_right_margin(True)
 		CodeEditorText.set_smart_home_end(True)
@@ -332,28 +333,24 @@ class MainWindow():
 		self.UrlBox.pack_start(self.UrlLabel, fill = False, expand = False, padding = 5)
 		#URL entry box
 		self.UrlTextView = gtk.TextView()
-		self.UrlTextView.connect('key_release_event',self.onPressEnterUrlBar)
+		self.UrlTextView.connect('key_release_event',self.urlBarKeyPressed)
 		self.UrlTextView.set_events(gtk.gdk.KEY_RELEASE_MASK)
 		self.UrlBox.pack_start(self.UrlTextView,padding = 5)
 
 		self.UrlButton = gtk.Button("GO")
-		self.UrlButton.connect('clicked',self.getTestCases)
+		self.UrlButton.connect('clicked',self.urlGo)
 		self.UrlBox.pack_start(self.UrlButton,False,False,padding = 5)
 
 
 	#fetch test cases from url and add to input output boxes
-	def getTestCases(self,widget):
+	def getTestCases(self, io):
+		print("getting test cases")
+
 		inputbuffer = self.InputText.get_buffer()
 		inputbuffer.set_text('')
-		self.InputText.set_buffer(inputbuffer)
 
 		outputbuffer = self.OutputText.get_buffer()
 		outputbuffer.set_text('')
-		self.OutputText.set_buffer(outputbuffer)
-
-
-		urlVal = self.UrlView.get_buffer().get_text()
-		io = getInputOutput(urlVal)
 
 		inputbuffer.set_text(io[0])
 		self.InputText.set_buffer(inputbuffer)
@@ -361,11 +358,27 @@ class MainWindow():
 		self.OutputText.set_buffer(outputbuffer)
 
 
-	#called when Enter is pressed on the URL bar
-	def onPressEnterUrlBar(self,widget,event):
-		if(event.keyval == 65293):
-			self.getTestCases(None)
+	def urlFetcher(self):
+		inputbuffer = self.InputText.get_buffer()
+		inputbuffer.set_text('fetching test case...')
 
+		outputbuffer = self.OutputText.get_buffer()
+		outputbuffer.set_text('fetching test case...')
+
+		buffer = self.UrlTextView.get_buffer()
+		urlVal = buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter())
+		io = getInputOutput(urlVal)
+		gobject.idle_add(self.getTestCases,io)
+
+
+	#called when Enter is pressed on the URL bar or Go button is clicked
+	def urlGo(self,widget = None,event = None):
+		threading.Thread(target = self.urlFetcher, args = () ).start()
+
+	#called when enter is pressed into the URL bar
+	def urlBarKeyPressed(self, widget, event):
+		if(event.keyval == 65293):
+			self.urlGo()
 
 	#MENU BAR FUNCTIONS BELOW
 
@@ -453,7 +466,7 @@ class MainWindow():
 
 		separator = gtk.SeparatorMenuItem()
 		self.RecentFilesMenu.append(separator)
-		print("recent_files_list", self.PreferencesDict['recent_files_list'])
+		# print("recent_files_list", self.PreferencesDict['recent_files_list'])
 		for tempFile in self.PreferencesDict['recent_files_list']:
 			fileItem = gtk.MenuItem(self.GetFileName(tempFile))
 			self.RecentFilesMenu.append(fileItem)
@@ -1151,4 +1164,5 @@ class MainWindow():
 			self.keywords[i] = self.keywords[i].rstrip()
 
 if __name__ == "__main__":
+	gtk.gdk.threads_init()
 	window = MainWindow()
