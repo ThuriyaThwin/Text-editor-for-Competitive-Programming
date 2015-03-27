@@ -2,6 +2,7 @@ import ConfigParser
 import gtk
 import gobject
 import os
+import time
 import subprocess
 import re
 import string
@@ -15,7 +16,7 @@ from htmlparser import *
 from pygoogle import pygoogle
 
 #TODO
-#undo redo
+#redo
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
@@ -26,11 +27,25 @@ class MainWindow():
 
 	def __init__(self):
 
-		self.CodeNotebookPageVals = [] #list of lists to hold values for each page in the notebook [ scrolledwindow object, labelbox object, filepath, save state]
-		self.keywords = [] #to hold list of keywords to highlight
-		self.tags = [] #list to hold list of tags added to all the pages
-		self.PreferencesDict = {} #dictionary to load/save preferences to
-		self.PreviousFileIndex = 0 #index of the previous file to open (needs working)
+		#list of lists to hold values for each page in the notebook 
+		# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn]
+		self.CodeNotebookPageVals = [] 
+		
+		#to hold list of keywords to highlight
+		self.keywords = [] 
+
+		#list to hold list of tags added to all the pages
+		self.tags = [] 
+
+		#dictionary to load/save preferences to
+		self.PreferencesDict = {} 
+
+		#index of the previous file to open (needs working)
+		self.PreviousFileIndex = 0 
+
+		#used to skip saving text state in case undo was performed(since performing undo will also call the function due to change in text)
+		self.UndoPerformed = False 
+
 		self.loadKeywords()
 		self.loadPreferences()
 		self.init()
@@ -171,15 +186,20 @@ class MainWindow():
 		CodeEditorScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 		#code editor text object
 		CodeEditorText = gtksourceview2.View()
+		CodeEditorText.set_indent_width(4)
+		CodeEditorText.set_highlight_current_line(True)
+		CodeEditorText.set_insert_spaces_instead_of_tabs(True)
 		CodeEditorText.set_show_line_numbers(True)
-		# CodeEditorText.set_show_line_marks(True)
+		CodeEditorText.set_show_line_marks(True)
 		CodeEditorText.set_auto_indent(True)
-		CodeEditorText.set_show_right_margin(True)
+		# CodeEditorText.set_show_right_margin(True)
 		CodeEditorText.set_smart_home_end(True)
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
 		# CodeEditorText.set_buffer(buffer)
-		buffer.connect('changed',self.TextChangedCodeEditor) #set callback function whenever text is changed
+		# buffer.connect('insert-text',self.TextChangedCodeEditor) #set callback function whenever text is changed
+		CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
+		# buffer.connect('delete-range',self.TextChangedCodeEditor)
 		CodeEditorText.show()
 		CodeEditorScrolledWindow.add(CodeEditorText)
 		CodeEditorScrolledWindow.show()
@@ -191,9 +211,10 @@ class MainWindow():
 		self.tags.append([])
 
 		if(file_path == '/Untitled'):
-			return [CodeEditorScrolledWindow, labelBox, None, True] #[ scrolledwindow object, labelbox object, filepath, save state]
+			# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn]
+			return [CodeEditorScrolledWindow, labelBox, None, True, [''], False] 
 		else:
-			return [CodeEditorScrolledWindow, labelBox, file_path, True]
+			return [CodeEditorScrolledWindow, labelBox, file_path, True, [''], False]
 	
 
 	#function to close the respective tab
@@ -223,21 +244,55 @@ class MainWindow():
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
 
+	#called when a key is pressed into the codeeditor
+	def CodeEditorKeyPress(self, widget, event):
+
+		#if the key pressed was backspace or delete or a printable string
+		if( (event.keyval == 65288 or event.keyval == 65535 or event.string in string.printable) and (not event.string == '')) :
+			self.TextChangedCodeEditor()
+
+		
+	# Once the thread is over reset the thread state to false to save the state if user types again
+	def undoThreadOver(self, page_num):
+		self.CodeNotebookPageVals[page_num][5] = False
+		# print("thread over : ",self.CodeNotebookPageVals[page_num][4])
+
+	#stores the current text state and waits a second to let the user type before storing another state for an undo move
+	def undoThread(self,page_num):
+		time.sleep(1)
+		gobject.idle_add(self.undoThreadOver,page_num)
+				
 
 	#called when text is changed in the editor
-	def TextChangedCodeEditor(self,widget):
+	def TextChangedCodeEditor(self,arg1 = None, arg2 = None, arg3 = None, arg4 = None):
 		page_num = self.CodeNotebook.get_current_page()
+		#if undo was done then no need to save text state
+		if(not self.UndoPerformed):
+			#if the thread is already not running then start it
+			if(not self.CodeNotebookPageVals[page_num][5]):
+				
+				buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+				if(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()) !=  self.CodeNotebookPageVals[page_num][4][-1]):
+					self.CodeNotebookPageVals[page_num][4].append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
+					self.CodeNotebookPageVals[page_num][5] = True
+					threading.Thread(target = self.undoThread, args = (page_num,) ).start()
+			else:
+				# print("thread running")
+				pass
+		else:
+			self.UndoPerformed = False
+			# print("passing since undo done")
+			pass
+			# print(self.CodeNotebookPageVals)
 		self.CodeNotebookPageVals[page_num][3] = False
 		self.HighlightKeywords()
 		
 
 	#function to go throught the text in the editor box and highlight keywords
 	#removes all tags and reapplies them everytime a key is pressed
-	#can be improved
+	#TODO can be improved
 	def HighlightKeywords(self):
-
 		#HIGHLIGHT KEYWORDS BELOW
-
 		page_num = self.CodeNotebook.get_current_page()
 		#get buffer of page
 		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
@@ -338,7 +393,7 @@ class MainWindow():
 		self.UrlBox.pack_start(self.UrlTextView,padding = 5)
 
 		self.UrlButton = gtk.Button("GO")
-		self.UrlButton.connect('clicked',self.urlGo)
+		self.UrlButton.connect('clicked',self.urlFetchThread)
 		self.UrlBox.pack_start(self.UrlButton,False,False,padding = 5)
 
 
@@ -372,13 +427,13 @@ class MainWindow():
 
 
 	#called when Enter is pressed on the URL bar or Go button is clicked
-	def urlGo(self,widget = None,event = None):
+	def urlFetchThread(self,widget = None,event = None):
 		threading.Thread(target = self.urlFetcher, args = () ).start()
 
 	#called when enter is pressed into the URL bar
 	def urlBarKeyPressed(self, widget, event):
 		if(event.keyval == 65293):
-			self.urlGo()
+			self.urlFetchThread()
 
 	#MENU BAR FUNCTIONS BELOW
 
@@ -479,16 +534,21 @@ class MainWindow():
 	def CreateEditMenuOption(self):
 
 		self.EditMenu = gtk.Menu()
+		self.Undo = gtk.MenuItem("Undo")
+		separator1 = gtk.SeparatorMenuItem()
 		self.Cut = gtk.MenuItem("Cut")
 		self.Copy = gtk.MenuItem("Copy")
 		self.Paste = gtk.MenuItem("Paste")
-		separator = gtk.SeparatorMenuItem()
+		separator2 = gtk.SeparatorMenuItem()
 		self.Preferences = gtk.MenuItem("Preferences")
+		self.EditMenu.append(self.Undo)
+		self.EditMenu.append(separator1)
 		self.EditMenu.append(self.Cut)
 		self.EditMenu.append(self.Copy)
 		self.EditMenu.append(self.Paste)
-		self.EditMenu.append(separator)
+		self.EditMenu.append(separator2)
 		self.EditMenu.append(self.Preferences)
+		self.Undo.connect("activate",self.UndoText)
 		self.Cut.connect("activate",self.CutText)
 		self.Copy.connect("activate",self.CopyText)
 		self.Paste.connect("activate",self.PasteText)
@@ -581,7 +641,7 @@ class MainWindow():
 	def CloseCurrentPage(self, widget):
 
 		index = self.CodeNotebook.get_current_page()
-		print(self.CodeNotebookPageVals)
+		# print(self.CodeNotebookPageVals)
 		if(not self.CodeNotebookPageVals[index][3]):
 			if(not self.ConfirmSaveDialog(index)):
 				return
@@ -599,6 +659,20 @@ class MainWindow():
 				self.SavePreferences()
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
+
+	#function to undo text
+	def UndoText(self,widget):
+
+		page_num = self.CodeNotebook.get_current_page()
+		self.UndoPerformed = True
+		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+		text = self.CodeNotebookPageVals[page_num][4][-1]
+		buffer.set_text(text)
+		del self.CodeNotebookPageVals[page_num][4][len(self.CodeNotebookPageVals[page_num][4])-1]
+		if(len(self.CodeNotebookPageVals[page_num][4]) == 0):
+			self.CodeNotebookPageVals[page_num][4].append('')
+		# print("undo performed :",self.CodeNotebookPageVals[page_num][4])
+		self.HighlightKeywords()
 
 
 	#function to paste text into the editor from clipboard
@@ -942,6 +1016,7 @@ class MainWindow():
 		self.CloseFile.add_accelerator("activate", self.accel_group, ord('W'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Quit.add_accelerator("activate", self.accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.NewEmptyFile.add_accelerator("activate", self.accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Undo.add_accelerator("activate", self.accel_group, ord('Z'), gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Cut.add_accelerator("activate", self.accel_group, ord('X'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Copy.add_accelerator("activate", self.accel_group, ord('C'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Paste.add_accelerator("activate", self.accel_group, ord('V'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
@@ -1135,6 +1210,8 @@ class MainWindow():
 		self.GoogleResultsDialog.run()
 		self.GoogleResultsDialog.destroy()
 
+
+	#returns the title of the url received from the google search for errors
 	def GetTitleUrl(self,url):
 
 		try:
@@ -1152,7 +1229,6 @@ class MainWindow():
 
 	#return the filename after extracting it from the filepath
 	def GetFileName(self,filepath):
-
 		return filepath[filepath.rfind('/')+1:]
 
 	#loads keywords (currently only cpp)
