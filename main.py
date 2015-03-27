@@ -13,6 +13,7 @@ import threading
 import webbrowser
 import gtksourceview2
 from htmlparser import *
+from pagevals import *
 from pygoogle import pygoogle
 
 #TODO
@@ -28,14 +29,11 @@ class MainWindow():
 	def __init__(self):
 
 		#list of lists to hold values for each page in the notebook 
-		# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn]
+		# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn, tags]
 		self.CodeNotebookPageVals = [] 
 		
 		#to hold list of keywords to highlight
 		self.keywords = [] 
-
-		#list to hold list of tags added to all the pages
-		self.tags = [] 
 
 		#dictionary to load/save preferences to
 		self.PreferencesDict = {} 
@@ -132,12 +130,11 @@ class MainWindow():
 		#add to center window(VPaned)
 		self.CenterWindow.add(self.ConsoleScrolledWindow)
 
+
 	def CreateCodeEditorBox(self):
 
 		#Box to hold CodeNotebook
 		self.CodeEditorBox = gtk.HBox()
-
-		
 
 		#code notebook to hold all files as tabs
 		self.CodeNotebook = gtk.Notebook() 
@@ -157,12 +154,13 @@ class MainWindow():
 		#create and add a notebook page
 		page = self.CreateNotebookPage()
 		self.CodeNotebookPageVals.append(page)
-		self.CodeNotebook.append_page(page[0], page[1])
+		self.CodeNotebook.append_page(page.scrolledWindow, page.labelBox)
 
 		#add notebook to box
 		self.CodeEditorBox.pack_start(self.CodeNotebook,padding = 5)
 		#adding the code editor scrolled window to vertical pannable window
 		self.IOCodeWindow.add(self.CodeEditorBox)
+
 
 	#creates a page for the codenotebook
 	def CreateNotebookPage(self, file_path = '/Untitled', text = ''):
@@ -208,13 +206,16 @@ class MainWindow():
 		closeButton.connect("clicked", self.ClosePage, CodeEditorScrolledWindow)
 
 		#append a list to hold tags of the file
-		self.tags.append([])
+		# self.tags.append([])
+
 
 		if(file_path == '/Untitled'):
-			# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn]
-			return [CodeEditorScrolledWindow, labelBox, None, True, [''], False] 
+			# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn, tags]
+			page = PageVals(CodeEditorScrolledWindow, labelBox, None, True, [text], False, 0, [])
+			return page
 		else:
-			return [CodeEditorScrolledWindow, labelBox, file_path, True, [''], False]
+			page = PageVals(CodeEditorScrolledWindow, labelBox, file_path, True, [text], False, 0, [])
+			return page
 	
 
 	#function to close the respective tab
@@ -224,15 +225,14 @@ class MainWindow():
 		index = self.CodeNotebook.page_num(child)
 
 		#ask to save if not saved
-		if(not self.CodeNotebookPageVals[index][3]):
+		if(not self.CodeNotebookPageVals[index].saveState):
 			if(not self.ConfirmSaveDialog(index)):
 				return
 		else:
 			#remove and delete the page
-			filepath = self.CodeNotebookPageVals[index][2]
+			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
-			del self.tags[index]
 			if(filepath != None):
 				try:
 					self.PreferencesDict['recent_files_list'].remove(filepath)
@@ -244,6 +244,7 @@ class MainWindow():
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
 
+
 	#called when a key is pressed into the codeeditor
 	def CodeEditorKeyPress(self, widget, event):
 
@@ -254,8 +255,8 @@ class MainWindow():
 		
 	# Once the thread is over reset the thread state to false to save the state if user types again
 	def undoThreadOver(self, page_num):
-		self.CodeNotebookPageVals[page_num][5] = False
-		# print("thread over : ",self.CodeNotebookPageVals[page_num][4])
+		self.CodeNotebookPageVals[page_num].undoThreadOn = False
+		print("thread over:", self.CodeNotebookPageVals[page_num].undoStates)
 
 	#stores the current text state and waits a second to let the user type before storing another state for an undo move
 	def undoThread(self,page_num):
@@ -269,12 +270,12 @@ class MainWindow():
 		#if undo was done then no need to save text state
 		if(not self.UndoPerformed):
 			#if the thread is already not running then start it
-			if(not self.CodeNotebookPageVals[page_num][5]):
+			if(not self.CodeNotebookPageVals[page_num].undoThreadOn):
 				
-				buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
-				if(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()) !=  self.CodeNotebookPageVals[page_num][4][-1]):
-					self.CodeNotebookPageVals[page_num][4].append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
-					self.CodeNotebookPageVals[page_num][5] = True
+				buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+				if(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()) !=  self.CodeNotebookPageVals[page_num].undoStates[-1]):
+					self.CodeNotebookPageVals[page_num].undoStates.append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
+					self.CodeNotebookPageVals[page_num].undoThreadOn = True
 					threading.Thread(target = self.undoThread, args = (page_num,) ).start()
 			else:
 				# print("thread running")
@@ -284,7 +285,7 @@ class MainWindow():
 			# print("passing since undo done")
 			pass
 			# print(self.CodeNotebookPageVals)
-		self.CodeNotebookPageVals[page_num][3] = False
+		self.CodeNotebookPageVals[page_num].saveState = False
 		self.HighlightKeywords()
 		
 
@@ -295,21 +296,23 @@ class MainWindow():
 		#HIGHLIGHT KEYWORDS BELOW
 		page_num = self.CodeNotebook.get_current_page()
 		#get buffer of page
-		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
 
 		#remove tags from buffer and tagtable
 		try:
-			for tag in self.tags[page_num]:
+			for tag in self.CodeNotebookPageVals[page_num].tags:
 				buffer.remove_tag(tag,start_iter,end_iter)
 				buffer.get_tag_table().remove(tag)
 		except IndexError:
-			self.tags.append([])
+			print("index error on tags")
+			pass
+			# self.tags.append([])
 
 		#set tags list to empty list
-		self.tags[page_num] = []
+		self.CodeNotebookPageVals[page_num].tags = []
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
@@ -323,8 +326,8 @@ class MainWindow():
 			while(pos != None):
 				#check if the word is not a substring but an actual word
 				if(pos[1].ends_word() and pos[0].starts_word()):
-					self.tags[page_num].append(buffer.create_tag(None,foreground = '#ff0000'))
-					buffer.apply_tag(self.tags[page_num][-1], pos[0], pos[1])
+					self.CodeNotebookPageVals[page_num].tags.append(buffer.create_tag(None,foreground = '#ff0000'))
+					buffer.apply_tag(self.CodeNotebookPageVals[page_num].tags[-1], pos[0], pos[1])
 				#set iter to end position
 				start_iter = pos[1]
 				#search again
@@ -332,7 +335,6 @@ class MainWindow():
 
 
 	#input output text box codes below
-
 	def CreateIOLabels(self):
 
 		#Labels Bar for Input Output
@@ -344,6 +346,7 @@ class MainWindow():
 		#Output Label
 		self.OutputLabel = gtk.Label("Output")
 		self.IOLabelBox.pack_start(self.OutputLabel)
+
 
 	def CreateIOTextBoxes(self):
 
@@ -376,7 +379,6 @@ class MainWindow():
 
 
 	#Url bar functions below
-
 	#add the url bar to the window
 	def CreateUrlBar(self):
 
@@ -430,13 +432,14 @@ class MainWindow():
 	def urlFetchThread(self,widget = None,event = None):
 		threading.Thread(target = self.urlFetcher, args = () ).start()
 
+
 	#called when enter is pressed into the URL bar
 	def urlBarKeyPressed(self, widget, event):
 		if(event.keyval == 65293):
 			self.urlFetchThread()
 
-	#MENU BAR FUNCTIONS BELOW
 
+	#MENU BAR FUNCTIONS BELOW
 	def CreateMenuBar(self):
 
 		self.CreateFileMenuOption()
@@ -452,6 +455,7 @@ class MainWindow():
 		self.MenuBar.append(self.FileOption)
 		self.MenuBar.append(self.EditOption)
 		self.MenuBar.append(self.ViewOption)
+
 
 	#Create file menu options
 	def CreateFileMenuOption(self):
@@ -504,6 +508,7 @@ class MainWindow():
 		self.FileOption.show()
 		self.FileOption.set_submenu(self.FileMenu)
 	
+
 	#creates the recent files menu
 	#also called when a tab is closed to refresh recent files list
 	def SetRecentFilesMenu(self):
@@ -561,6 +566,7 @@ class MainWindow():
 		self.EditOption.show()
 		self.EditOption.set_submenu(self.EditMenu)
 
+
 	def CreateViewMenuOption(self):
 
 		self.ViewMenu = gtk.Menu()
@@ -589,6 +595,7 @@ class MainWindow():
 		self.ViewOption.show()
 		self.ViewOption.set_submenu(self.ViewMenu)
 
+
 	#reopen the previous file (hotkey function)
 	def ReopenLastFile(self, widget):
 		
@@ -605,6 +612,7 @@ class MainWindow():
 		else:
 			self.UrlBox.hide()
 
+
 	#show hide console window
 	def ToggleConsoleWindow(self, widget):
 
@@ -613,6 +621,7 @@ class MainWindow():
 		else:
 			self.ConsoleScrolledWindow.hide()
 		
+
 	#show hide input output pane/window
 	def ToggleInputOutputWindow(self, widget):
 
@@ -623,6 +632,7 @@ class MainWindow():
 			self.IOLabelBox.hide()
 			self.IOBox.hide()
 
+
 	#opens the recent file
 	def OpenRecentFile(self,widget,filepath):
 
@@ -632,7 +642,7 @@ class MainWindow():
 		f.close()
 		page = self.CreateNotebookPage(filename, text)
 		self.CodeNotebookPageVals.append(page)
-		self.CodeNotebook.append_page(page[0], page[1])		
+		self.CodeNotebook.append_page(page.scrolledWindow, page.labelBox)		
 		self.CodeNotebook.set_current_page(-1)
 		self.HighlightKeywords()
 
@@ -641,14 +651,14 @@ class MainWindow():
 	def CloseCurrentPage(self, widget):
 
 		index = self.CodeNotebook.get_current_page()
-		# print(self.CodeNotebookPageVals)
-		if(not self.CodeNotebookPageVals[index][3]):
+		if(not self.CodeNotebookPageVals[index].saveState):
 			if(not self.ConfirmSaveDialog(index)):
 				return
 		else:
-			filepath = self.CodeNotebookPageVals[index][2]
+			#TODO delete from codenotebookpagevals
+			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
-			del self.tags[index]
+			del self.CodeNotebookPageVals[index]
 			if(filepath != None):
 				try:
 					self.PreferencesDict['recent_files_list'].remove(filepath)
@@ -660,18 +670,23 @@ class MainWindow():
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
 
+
 	#function to undo text
 	def UndoText(self,widget):
 
 		page_num = self.CodeNotebook.get_current_page()
 		self.UndoPerformed = True
-		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
-		text = self.CodeNotebookPageVals[page_num][4][-1]
-		buffer.set_text(text)
-		del self.CodeNotebookPageVals[page_num][4][len(self.CodeNotebookPageVals[page_num][4])-1]
-		if(len(self.CodeNotebookPageVals[page_num][4]) == 0):
-			self.CodeNotebookPageVals[page_num][4].append('')
-		# print("undo performed :",self.CodeNotebookPageVals[page_num][4])
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+		try:
+			text = self.CodeNotebookPageVals[page_num].undoStates[-1]
+			buffer.set_text(text)
+			del self.CodeNotebookPageVals[page_num].undoStates[len(self.CodeNotebookPageVals[page_num].undoStates)-1]
+			print("undo performed :",self.CodeNotebookPageVals[page_num].undoStates)
+		except: 
+			print("error nothing to undo")
+			pass
+		# if(len(self.CodeNotebookPageVals[page_num].undoStates) == 0):
+		# 	self.CodeNotebookPageVals[page_num].undoStates.append('')
 		self.HighlightKeywords()
 
 
@@ -848,7 +863,7 @@ class MainWindow():
 	def OpenNewEmptyFile(self,widget):
 
 		page = self.CreateNotebookPage()
-		self.CodeNotebook.append_page(page[0],page[1])
+		self.CodeNotebook.append_page(page.scrolledWindow,page.labelBox)
 		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.set_current_page(-1)
 
@@ -871,10 +886,9 @@ class MainWindow():
 
 		if(response == gtk.RESPONSE_NO):
 			print("close without save")
-			filepath = self.CodeNotebookPageVals[index][2]
+			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
-			del self.tags[index]
 			if(filepath != None):
 				try:
 					self.PreferencesDict['recent_files_list'].remove(filepath)
@@ -890,7 +904,7 @@ class MainWindow():
 		elif(response == gtk.RESPONSE_OK):
 			print("save file")
 			self.SaveFileDialog(None, page_num = index)
-			filepath = self.CodeNotebookPageVals[index][2]
+			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
 			del self.tags[index]
@@ -926,7 +940,7 @@ class MainWindow():
 			#append page details to notebook list
 			self.CodeNotebookPageVals.append(page)
 			#append the page into the code notebook(set of tabs)
-			self.CodeNotebook.append_page(page[0], page[1])		
+			self.CodeNotebook.append_page(page.scrolledWindow, page.labelBox)		
 
 		elif response == gtk.RESPONSE_CANCEL:
 			print('Closed, no files selected') #log
@@ -948,13 +962,13 @@ class MainWindow():
 		    filepath = dialog.get_filename()
 
 		    page_num = self.CodeNotebook.get_current_page()
-		    buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+		    buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 
 		    filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		    filestream.close()
 
-		    self.CodeNotebookPageVals[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
-		    self.CodeNotebookPageVals[page_num][2] = filepath
+		    self.CodeNotebookPageVals[page_num].labelBox.get_children()[0].set_label(self.GetFileName(filepath))
+		    self.CodeNotebookPageVals[page_num].filepath = filepath
 
 		elif response == gtk.RESPONSE_CANCEL:
 		    print('Closed, no files selected') #log
@@ -972,8 +986,8 @@ class MainWindow():
 		if(page_num == None):
 			page_num = self.CodeNotebook.get_current_page()
 		print(self.CodeNotebookPageVals[page_num])
-		filepath =  self.CodeNotebookPageVals[page_num][2]
-		print("filepaht :",filepath)
+		filepath =  self.CodeNotebookPageVals[page_num].filepath
+		print("filepath :",filepath)
 		if(filepath == None):
 			dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
 											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
@@ -982,15 +996,15 @@ class MainWindow():
 			if response == gtk.RESPONSE_OK:
 				filestream = open(dialog.get_filename(),'w')
 				filepath = dialog.get_filename()
-				self.CodeNotebookPageVals[page_num][2] = filepath
+				self.CodeNotebookPageVals[page_num].filepath = filepath
 				page_num = self.CodeNotebook.get_current_page()
 				# print("\ncurrent page : "+str(page_num)+'\n')
-				buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+				buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 
 				filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 				filestream.close()
 
-				self.CodeNotebookPageVals[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
+				self.CodeNotebookPageVals[page_num].labelBox.get_children()[0].set_label(self.GetFileName(filepath))
 			elif response == gtk.RESPONSE_CANCEL:
 				print('Closed, no files selected') #log
 			dialog.destroy()
@@ -998,12 +1012,12 @@ class MainWindow():
 			filestream = open(filepath,'w')
 			
 			page_num = self.CodeNotebook.get_current_page()
-			buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+			buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 			
 			filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 			filestream.close()
 
-			self.CodeNotebookPageVals[page_num][1].get_children()[0].set_label(self.GetFileName(filepath))
+			self.CodeNotebookPageVals[page_num].labelBox.get_children()[0].set_label(self.GetFileName(filepath))
 
 
 	# setting hotkeys
@@ -1049,7 +1063,7 @@ class MainWindow():
 		#write code to file
 		codefile = open('tempcode.cpp','w')
 		page_num = self.CodeNotebook.get_current_page()
-		buffer = self.CodeNotebookPageVals[page_num][0].get_children()[0].get_buffer()
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
 		text = buffer.get_text(start_iter,end_iter,True)
