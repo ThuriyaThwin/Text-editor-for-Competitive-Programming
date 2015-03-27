@@ -29,7 +29,7 @@ class MainWindow():
 	def __init__(self):
 
 		#list of lists to hold values for each page in the notebook 
-		# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn, tags]
+		# [scrolledwindow object, labelbox object, filepath, save state, textStates, undoThreadOn, tags]
 		self.CodeNotebookPageVals = [] 
 		
 		#to hold list of keywords to highlight
@@ -196,7 +196,8 @@ class MainWindow():
 		buffer.set_text(text)
 		# CodeEditorText.set_buffer(buffer)
 		# buffer.connect('insert-text',self.TextChangedCodeEditor) #set callback function whenever text is changed
-		CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
+		# CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
+		CodeEditorText.connect('key_release_event',self.CodeEditorKeyPress)
 		# buffer.connect('delete-range',self.TextChangedCodeEditor)
 		CodeEditorText.show()
 		CodeEditorScrolledWindow.add(CodeEditorText)
@@ -210,7 +211,7 @@ class MainWindow():
 
 
 		if(file_path == '/Untitled'):
-			# [scrolledwindow object, labelbox object, filepath, save state, undoStates, undoThreadOn, tags]
+			# [scrolledwindow object, labelbox object, filepath, save state, textStates, undoThreadOn, tags]
 			page = PageVals(CodeEditorScrolledWindow, labelBox, None, True, [text], False, 0, [])
 			return page
 		else:
@@ -247,16 +248,22 @@ class MainWindow():
 
 	#called when a key is pressed into the codeeditor
 	def CodeEditorKeyPress(self, widget, event):
-
+		# page_num = self.CodeNotebook.get_current_page()
 		#if the key pressed was backspace or delete or a printable string
 		if( (event.keyval == 65288 or event.keyval == 65535 or event.string in string.printable) and (not event.string == '')) :
+			# print(event.string,self.CodeNotebookPageVals[page_num].undoThreadOn)
 			self.TextChangedCodeEditor()
 
 		
 	# Once the thread is over reset the thread state to false to save the state if user types again
 	def undoThreadOver(self, page_num):
 		self.CodeNotebookPageVals[page_num].undoThreadOn = False
-		print("thread over:", self.CodeNotebookPageVals[page_num].undoStates)
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+		self.CodeNotebookPageVals[page_num].textStates.append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
+		self.CodeNotebookPageVals[page_num].undoRedoIndex = len(self.CodeNotebookPageVals[page_num].textStates) - 1
+		# print("thread over:", self.CodeNotebookPageVals[page_num].textStates)
+		# print("undoredoindex:", self.CodeNotebookPageVals[page_num].undoRedoIndex)
+		# print("undothreadon:",self.CodeNotebookPageVals[page_num].undoThreadOn)
 
 	#stores the current text state and waits a second to let the user type before storing another state for an undo move
 	def undoThread(self,page_num):
@@ -273,12 +280,23 @@ class MainWindow():
 			if(not self.CodeNotebookPageVals[page_num].undoThreadOn):
 				
 				buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
-				if(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()) !=  self.CodeNotebookPageVals[page_num].undoStates[-1]):
-					self.CodeNotebookPageVals[page_num].undoStates.append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
+				if(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()) !=  self.CodeNotebookPageVals[page_num].textStates[-1]):
+					del self.CodeNotebookPageVals[page_num].textStates[self.CodeNotebookPageVals[page_num].undoRedoIndex+1:]
+					self.CodeNotebookPageVals[page_num].textStates.append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
 					self.CodeNotebookPageVals[page_num].undoThreadOn = True
+					self.CodeNotebookPageVals[page_num].undoRedoIndex = len(self.CodeNotebookPageVals[page_num].textStates) - 1
+					# print('starting thread')
 					threading.Thread(target = self.undoThread, args = (page_num,) ).start()
+				else:
+					pass
+					# print("buffer text:", buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
+					# print("text state :", self.CodeNotebookPageVals[page_num].textStates[-1])
 			else:
+				# buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+				# self.CodeNotebookPageVals[page_num].textStates.append(buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter()))
 				# print("thread running")
+				# print("textstate: ", self.CodeNotebookPageVals[page_num].textStates)
+				# print("undoredoindex:", self.CodeNotebookPageVals[page_num].undoRedoIndex)
 				pass
 		else:
 			self.UndoPerformed = False
@@ -540,6 +558,7 @@ class MainWindow():
 
 		self.EditMenu = gtk.Menu()
 		self.Undo = gtk.MenuItem("Undo")
+		self.Redo = gtk.MenuItem("Redo")
 		separator1 = gtk.SeparatorMenuItem()
 		self.Cut = gtk.MenuItem("Cut")
 		self.Copy = gtk.MenuItem("Copy")
@@ -547,6 +566,7 @@ class MainWindow():
 		separator2 = gtk.SeparatorMenuItem()
 		self.Preferences = gtk.MenuItem("Preferences")
 		self.EditMenu.append(self.Undo)
+		self.EditMenu.append(self.Redo)
 		self.EditMenu.append(separator1)
 		self.EditMenu.append(self.Cut)
 		self.EditMenu.append(self.Copy)
@@ -554,6 +574,7 @@ class MainWindow():
 		self.EditMenu.append(separator2)
 		self.EditMenu.append(self.Preferences)
 		self.Undo.connect("activate",self.UndoText)
+		self.Redo.connect("activate",self.RedoText)
 		self.Cut.connect("activate",self.CutText)
 		self.Copy.connect("activate",self.CopyText)
 		self.Paste.connect("activate",self.PasteText)
@@ -677,16 +698,38 @@ class MainWindow():
 		page_num = self.CodeNotebook.get_current_page()
 		self.UndoPerformed = True
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+
+		# self.CodeNotebookPageVals[page_num].textStates.append(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		try:
-			text = self.CodeNotebookPageVals[page_num].undoStates[-1]
-			buffer.set_text(text)
-			del self.CodeNotebookPageVals[page_num].undoStates[len(self.CodeNotebookPageVals[page_num].undoStates)-1]
-			print("undo performed :",self.CodeNotebookPageVals[page_num].undoStates)
+			if(self.CodeNotebookPageVals[page_num].undoRedoIndex - 1 >= 0):
+				text = self.CodeNotebookPageVals[page_num].textStates[self.CodeNotebookPageVals[page_num].undoRedoIndex - 1]
+				buffer.set_text(text)
+				self.CodeNotebookPageVals[page_num].undoRedoIndex  = max(self.CodeNotebookPageVals[page_num].undoRedoIndex - 1, 0)
+				# del self.CodeNotebookPageVals[page_num].textStates[len(self.CodeNotebookPageVals[page_num].redoStates)-1]
+				# print("undo performed :",self.CodeNotebookPageVals[page_num].textStates)
+				# print("undoredoindex:", self.CodeNotebookPageVals[page_num].undoRedoIndex)
 		except: 
 			print("error nothing to undo")
 			pass
-		# if(len(self.CodeNotebookPageVals[page_num].undoStates) == 0):
-		# 	self.CodeNotebookPageVals[page_num].undoStates.append('')
+		# if(len(self.CodeNotebookPageVals[page_num].redoStates) == 0):
+		# 	self.CodeNotebookPageVals[page_num].redoStates.append('')
+		self.HighlightKeywords()
+
+	def RedoText(self, widget):
+		page_num = self.CodeNotebook.get_current_page()
+
+		self.UndoPerformed = True
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+		try:
+			text = self.CodeNotebookPageVals[page_num].textStates[self.CodeNotebookPageVals[page_num].undoRedoIndex + 1]
+			buffer.set_text(text)
+			self.CodeNotebookPageVals[page_num].undoRedoIndex  += 1
+			# print("redo performed :",self.CodeNotebookPageVals[page_num].textStates)
+			# print("undoredoindex:", self.CodeNotebookPageVals[page_num].undoRedoIndex)
+		except:
+			print("error in redo")
+			pass
+
 		self.HighlightKeywords()
 
 
@@ -1031,6 +1074,7 @@ class MainWindow():
 		self.Quit.add_accelerator("activate", self.accel_group, ord('Q'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.NewEmptyFile.add_accelerator("activate", self.accel_group, ord('N'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Undo.add_accelerator("activate", self.accel_group, ord('Z'), gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
+		self.Redo.add_accelerator("activate", self.accel_group, ord('Y'), gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Cut.add_accelerator("activate", self.accel_group, ord('X'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Copy.add_accelerator("activate", self.accel_group, ord('C'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.Paste.add_accelerator("activate", self.accel_group, ord('V'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
