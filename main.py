@@ -17,7 +17,6 @@ from pagevals import *
 from pygoogle import pygoogle
 
 #TODO
-#redo
 #more languages
 #more websites
 #better way to fix open close quotes in error message for googling
@@ -252,7 +251,26 @@ class MainWindow():
 		#if the key pressed was backspace or delete or a printable string
 		if( (event.keyval == 65288 or event.keyval == 65535 or event.string in string.printable) and (not event.string == '')) :
 			# print(event.string,self.CodeNotebookPageVals[page_num].undoThreadOn)
+			self.autoCompleteBrackets(event.string)
 			self.TextChangedCodeEditor()
+
+
+	def autoCompleteBrackets(self, character):
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+		if(character == '('):
+			buffer.insert_at_cursor(')')
+			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
+			buffer.place_cursor(iter)
+		if(character == '['):
+			buffer.insert_at_cursor(']')
+			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
+			buffer.place_cursor(iter)
+		if(character == '{'):
+			buffer.insert_at_cursor('}')
+			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
+			buffer.place_cursor(iter)
+		
 
 		
 	# Once the thread is over reset the thread state to false to save the state if user types again
