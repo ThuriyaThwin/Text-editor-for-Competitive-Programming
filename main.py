@@ -21,7 +21,13 @@ from pygoogle import pygoogle
 #more websites
 #better way to fix open close quotes in error message for googling
 #background colors/ themes
+#auto completion
+#function summary pop up
+#more preference settings
+#templates
 
+# fixed
+# highlight in cut paste
 
 class MainWindow():
 
@@ -98,8 +104,6 @@ class MainWindow():
 
 		#set compiler output area
 		self.CreateConsoleBox()
-
-
 
 		self.mainWindow.show_all()
 		gtk.main()
@@ -183,6 +187,8 @@ class MainWindow():
 		CodeEditorScrolledWindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
 		#code editor text object
 		CodeEditorText = gtksourceview2.View()
+		buffer = gtksourceview2.Buffer()
+		CodeEditorText.set_buffer(buffer)
 		CodeEditorText.set_indent_width(4)
 		CodeEditorText.set_highlight_current_line(True)
 		CodeEditorText.set_insert_spaces_instead_of_tabs(True)
@@ -193,6 +199,7 @@ class MainWindow():
 		CodeEditorText.set_smart_home_end(True)
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
+
 		# CodeEditorText.set_buffer(buffer)
 		# buffer.connect('insert-text',self.TextChangedCodeEditor) #set callback function whenever text is changed
 		# CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
@@ -406,9 +413,6 @@ class MainWindow():
 		self.IOPanedWindow = gtk.HPaned()
 		self.IOPanedWindow.add(self.InputScrolledWindow)
 		self.IOPanedWindow.add(self.OutputScrolledWindow)
-
-		#TODO need to create a function that auto sets the position when window size changes
-		self.IOPanedWindow.set_position(100)
 
 		#adding the panned window to IOBox
 		self.IOBox.pack_start(self.IOPanedWindow,padding = 5)
@@ -694,7 +698,6 @@ class MainWindow():
 			if(not self.ConfirmSaveDialog(index)):
 				return
 		else:
-			#TODO delete from codenotebookpagevals
 			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
@@ -717,6 +720,9 @@ class MainWindow():
 		self.UndoPerformed = True
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 
+		# buffer.undo()
+		# return
+
 		# self.CodeNotebookPageVals[page_num].textStates.append(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		try:
 			if(self.CodeNotebookPageVals[page_num].undoRedoIndex - 1 >= 0):
@@ -734,10 +740,14 @@ class MainWindow():
 		self.HighlightKeywords()
 
 	def RedoText(self, widget):
-		page_num = self.CodeNotebook.get_current_page()
 
+		page_num = self.CodeNotebook.get_current_page()
 		self.UndoPerformed = True
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+
+		# buffer.redo()
+		# return
+
 		try:
 			text = self.CodeNotebookPageVals[page_num].textStates[self.CodeNotebookPageVals[page_num].undoRedoIndex + 1]
 			buffer.set_text(text)
@@ -761,6 +771,7 @@ class MainWindow():
 		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
 		buffer.paste_clipboard(clipboard, None, True)
+		self.HighlightKeywords()
 
 	#function to copy selected text onto the clipboard
 	def CopyText(self,widget):
@@ -780,6 +791,7 @@ class MainWindow():
 		buffer = child.get_buffer()
 		clipboard = gtk.Clipboard()
 		buffer.cut_clipboard(clipboard,True)
+		self.HighlightKeywords()
 
 	#Response on clicking preferences in edit menu
 	def OpenPreferences(self, widget):
@@ -929,9 +941,9 @@ class MainWindow():
 		self.CodeNotebook.set_current_page(-1)
 
 
+	#show pop up dialog if changes made to file have not been saved and the user is quitting
 	def ConfirmSaveDialog(self, index):
 
-		#TODO
 		dialogWindow = gtk.Dialog("Preferences", None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
 										 (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_SAVE, gtk.RESPONSE_OK))
 		dialogWindow.set_has_separator(True)
