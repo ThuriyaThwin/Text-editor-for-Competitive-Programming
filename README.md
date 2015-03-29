@@ -5,6 +5,8 @@ Not completed yet
 
 # Usage
 Paste the url of the problem in the url bar and press enter to get the testcases automatically added to the input/output windows or manually copy paste input/outputs  
+  
+Pressing `Ctrl+Space` pops up an auto-complete menu  
 
 Code into the editor window and press 'Play icon' to compile and run  
   

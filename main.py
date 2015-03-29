@@ -13,6 +13,7 @@ import threading
 import webbrowser
 import gtksourceview2
 from htmlparser import *
+from autocomplete import *
 from pagevals import *
 from pygoogle import pygoogle
 
@@ -49,6 +50,7 @@ class MainWindow():
 		#used to skip saving text state in case undo was performed(since performing undo will also call the function due to change in text)
 		self.UndoPerformed = False 
 
+		self.CtrlPress = False
 		self.loadKeywords()
 		self.loadPreferences()
 		self.init()
@@ -66,6 +68,9 @@ class MainWindow():
 		self.mainWindow.set_opacity(self.PreferencesDict["opacity"])
 		#perform changes(setting the window separators) to the window when it resizes
 		self.mainWindow.connect("configure_event",self.WindowResize)
+
+		self.accel_group = gtk.AccelGroup()
+		self.mainWindow.add_accel_group(self.accel_group)
 
 		#main layout to hold child layouts
 		self.mainVerticalLayout = gtk.VBox()
@@ -106,8 +111,10 @@ class MainWindow():
 		self.CreateConsoleBox()
 
 		self.mainWindow.show_all()
+
 		gtk.main()
 
+	
 
 	#function called when window is resized
 	#used to set the separators of the paned windows
@@ -200,10 +207,12 @@ class MainWindow():
 		buffer = CodeEditorText.get_buffer()
 		buffer.set_text(text)
 
+
+		CodeEditorText.connect('event',self.callback)
 		# CodeEditorText.set_buffer(buffer)
-		# buffer.connect('insert-text',self.TextChangedCodeEditor) #set callback function whenever text is changed
+		buffer.connect('insert-text',self.HighlightKeywords) #set callback function whenever text is changed
 		# CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
-		CodeEditorText.connect('key_release_event',self.CodeEditorKeyPress)
+		CodeEditorText.connect('key_release_event',self.CodeEditorKeyRelease)
 		# buffer.connect('delete-range',self.TextChangedCodeEditor)
 		CodeEditorText.show()
 		CodeEditorScrolledWindow.add(CodeEditorText)
@@ -224,6 +233,18 @@ class MainWindow():
 			page = PageVals(CodeEditorScrolledWindow, labelBox, file_path, True, [text], False, 0, [])
 			return page
 	
+
+	def callback(self, widget, event):
+
+		page_num = self.CodeNotebook.get_current_page()
+		textview = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0] 
+		
+		if(event.type == gtk.gdk.KEY_RELEASE and event.keyval == 65507) :
+			self.CtrlPress = False
+		if(event.type == gtk.gdk.KEY_PRESS and event.keyval == 65507) :
+			self.CtrlPress = True
+		if(event.type == gtk.gdk.KEY_PRESS and event.keyval == 32 and self.CtrlPress):
+			AutoCompleter(textview, self.keywords)
 
 	#function to close the respective tab
 	def ClosePage(self, widget, child):
@@ -253,10 +274,14 @@ class MainWindow():
 
 
 	#called when a key is pressed into the codeeditor
-	def CodeEditorKeyPress(self, widget, event):
+	def CodeEditorKeyRelease(self, widget, event):
 		# page_num = self.CodeNotebook.get_current_page()
 		#if the key pressed was backspace or delete or a printable string
-		if( (event.keyval == 65288 or event.keyval == 65535 or event.string in string.printable) and (not event.string == '')) :
+		if(event.keyval == 65288 or event.keyval == 65535):
+			self.autoCompleteBrackets(event.string)
+			self.TextChangedCodeEditor()
+
+		elif( (event.string in string.printable) and (not event.string == '')) :
 			# print(event.string,self.CodeNotebookPageVals[page_num].undoThreadOn)
 			self.autoCompleteBrackets(event.string)
 			self.TextChangedCodeEditor()
@@ -335,10 +360,12 @@ class MainWindow():
 	#function to go throught the text in the editor box and highlight keywords
 	#removes all tags and reapplies them everytime a key is pressed
 	#TODO can be improved
-	def HighlightKeywords(self):
+	def HighlightKeywords(self, textbuffer = None, iter = None, text = None, length = None):
+		# print("highlighting ",text)
 		#HIGHLIGHT KEYWORDS BELOW
 		page_num = self.CodeNotebook.get_current_page()
 		#get buffer of page
+
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 
 		start_iter = buffer.get_start_iter()
@@ -1096,8 +1123,7 @@ class MainWindow():
 	# setting hotkeys
 	def SetHotkeys(self):
 
-		self.accel_group = gtk.AccelGroup()
-		self.mainWindow.add_accel_group(self.accel_group)
+		
 		self.OpenFile.add_accelerator("activate", self.accel_group, ord('O'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.SaveFile.add_accelerator("activate", self.accel_group, ord('S'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
 		self.CloseFile.add_accelerator("activate", self.accel_group, ord('W'),gtk.gdk.CONTROL_MASK, gtk.ACCEL_VISIBLE)
