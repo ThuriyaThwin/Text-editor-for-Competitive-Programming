@@ -22,13 +22,16 @@ from pygoogle import pygoogle
 #more websites
 #better way to fix open close quotes in error message for googling
 #background colors/ themes
-#auto completion
 #function summary pop up
-#more preference settings
-#templates
+#more preference settings (from createnotebookpage)
+#runtime
 
-# fixed
-# highlight in cut paste
+
+#fixed
+#templates
+#highlight in cut paste
+#load input/output file
+#auto completion
 
 class MainWindow():
 
@@ -53,6 +56,7 @@ class MainWindow():
 		self.CtrlPress = False
 		self.loadKeywords()
 		self.loadPreferences()
+		print(self.PreferencesDict)
 		self.init()
 
 	def init(self):
@@ -171,6 +175,9 @@ class MainWindow():
 		#adding the code editor scrolled window to vertical pannable window
 		self.IOCodeWindow.add(self.CodeEditorBox)
 
+		#to highlight keywords in the template
+		self.HighlightKeywords()
+
 
 	#creates a page for the codenotebook
 	def CreateNotebookPage(self, file_path = '/Untitled', text = ''):
@@ -196,22 +203,27 @@ class MainWindow():
 		CodeEditorText = gtksourceview2.View()
 		buffer = gtksourceview2.Buffer()
 		CodeEditorText.set_buffer(buffer)
-		CodeEditorText.set_indent_width(4)
+		CodeEditorText.set_indent_width(8)
 		CodeEditorText.set_highlight_current_line(True)
-		CodeEditorText.set_insert_spaces_instead_of_tabs(True)
+		CodeEditorText.set_insert_spaces_instead_of_tabs(False)
 		CodeEditorText.set_show_line_numbers(True)
 		CodeEditorText.set_show_line_marks(True)
 		CodeEditorText.set_auto_indent(True)
 		# CodeEditorText.set_show_right_margin(True)
 		CodeEditorText.set_smart_home_end(True)
 		buffer = CodeEditorText.get_buffer()
-		buffer.set_text(text)
+
+		#if text is empty then add the template else add the text
+		if(text == ''):
+			buffer.set_text(self.PreferencesDict['template'])
+		else:
+			buffer.set_text(text)
 
 
 		CodeEditorText.connect('event',self.callback)
 		# CodeEditorText.set_buffer(buffer)
 		buffer.connect('insert-text',self.HighlightKeywords) #set callback function whenever text is changed
-		# CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
+		CodeEditorText.connect('key_press_event',self.CodeEditorKeyPress)
 		CodeEditorText.connect('key_release_event',self.CodeEditorKeyRelease)
 		# buffer.connect('delete-range',self.TextChangedCodeEditor)
 		CodeEditorText.show()
@@ -246,32 +258,48 @@ class MainWindow():
 		if(event.type == gtk.gdk.KEY_PRESS and event.keyval == 32 and self.CtrlPress):
 			AutoCompleter(textview, self.keywords)
 
-	#function to close the respective tab
-	def ClosePage(self, widget, child):
-		
-		#get the index of the page that is being closed
-		index = self.CodeNotebook.page_num(child)
 
-		#ask to save if not saved
-		if(not self.CodeNotebookPageVals[index].saveState):
-			if(not self.ConfirmSaveDialog(index)):
-				return
-		else:
-			#remove and delete the page
-			filepath = self.CodeNotebookPageVals[index].filepath
-			self.CodeNotebook.remove_page(index)
-			del self.CodeNotebookPageVals[index]
-			if(filepath != None):
-				try:
-					self.PreferencesDict['recent_files_list'].remove(filepath)
-				except ValueError:
-					pass
-				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
-				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
-				self.SavePreferences()
-				self.SetRecentFilesMenu()
-			self.PreviousFileIndex = 0
+	#handles the insertion of closing braces
+	#since the editor automatically adds a closing brace when an opening brace is inserted
+	#users generally by intuition add a closing brace too so if a closing brace is being added
+	#then just move the cursor by 1 character if a closing brace is already present
+	def CodeEditorKeyPress(self,widget,event):
 
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+
+		if(event.string == ')'):
+			start = buffer.get_iter_at_offset(buffer.get_property("cursor_position"))
+			end = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+			char = buffer.get_text(start,end)
+			if(char == ')'):
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+				buffer.place_cursor(iter)
+				return True
+		if(event.string == '}'):
+			start = buffer.get_iter_at_offset(buffer.get_property("cursor_position"))
+			end = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+			char = buffer.get_text(start,end)
+			if(char == '}'):
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+				buffer.place_cursor(iter)
+				return True
+		if(event.string == ']'):
+			start = buffer.get_iter_at_offset(buffer.get_property("cursor_position"))
+			end = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+			char = buffer.get_text(start,end)
+			if(char == ']'):
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+				buffer.place_cursor(iter)
+				return True
+		if(event.string == '>'):
+			start = buffer.get_iter_at_offset(buffer.get_property("cursor_position"))
+			end = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+			char = buffer.get_text(start,end)
+			if(char == '>'):
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+				buffer.place_cursor(iter)
+				return True
 
 	#called when a key is pressed into the codeeditor
 	def CodeEditorKeyRelease(self, widget, event):
@@ -287,6 +315,7 @@ class MainWindow():
 			self.TextChangedCodeEditor()
 
 
+	#auto adds a closing brace when an opening brace is pressed
 	def autoCompleteBrackets(self, character):
 		page_num = self.CodeNotebook.get_current_page()
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
@@ -301,8 +330,11 @@ class MainWindow():
 		if(character == '{'):
 			buffer.insert_at_cursor('}')
 			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
-			buffer.place_cursor(iter)
-		
+			buffer.place_cursor(iter)	
+		if(character == '<'):
+			buffer.insert_at_cursor('>')
+			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
+			buffer.place_cursor(iter)	
 
 		
 	# Once the thread is over reset the thread state to false to save the state if user types again
@@ -361,7 +393,7 @@ class MainWindow():
 	#removes all tags and reapplies them everytime a key is pressed
 	#TODO can be improved
 	def HighlightKeywords(self, textbuffer = None, iter = None, text = None, length = None):
-		# print("highlighting ",text)
+		#print("highlighting ",textbuffer)
 		#HIGHLIGHT KEYWORDS BELOW
 		page_num = self.CodeNotebook.get_current_page()
 		#get buffer of page
@@ -403,6 +435,32 @@ class MainWindow():
 				#search again
 				pos = start_iter.forward_search(word,gtk.TEXT_SEARCH_TEXT_ONLY)		
 
+
+	#function to close the respective tab
+	def ClosePage(self, widget, child):
+		
+		#get the index of the page that is being closed
+		index = self.CodeNotebook.page_num(child)
+
+		#ask to save if not saved
+		if(not self.CodeNotebookPageVals[index].saveState):
+			if(not self.ConfirmSaveDialog(index)):
+				return
+		else:
+			#remove and delete the page
+			filepath = self.CodeNotebookPageVals[index].filepath
+			self.CodeNotebook.remove_page(index)
+			del self.CodeNotebookPageVals[index]
+			if(filepath != None):
+				try:
+					self.PreferencesDict['recent_files_list'].remove(filepath)
+				except ValueError:
+					pass
+				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
+				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+				self.SavePreferences()
+				self.SetRecentFilesMenu()
+			self.PreviousFileIndex = 0
 
 	#input output text box codes below
 	def CreateIOLabels(self):
@@ -512,6 +570,7 @@ class MainWindow():
 		self.CreateFileMenuOption()
 		self.CreateEditMenuOption()
 		self.CreateViewMenuOption()
+		self.CreateToolsMenuOption()
 
 		#create menu bar
 		self.MenuBar = gtk.MenuBar()
@@ -522,6 +581,32 @@ class MainWindow():
 		self.MenuBar.append(self.FileOption)
 		self.MenuBar.append(self.EditOption)
 		self.MenuBar.append(self.ViewOption)
+		self.MenuBar.append(self.ToolsOption)
+
+	#create tool menu options
+	def CreateToolsMenuOption(self):
+		self.ToolsMenu = gtk.Menu()
+		self.addInputFile = gtk.MenuItem("Add input file..")
+		self.addOutputFile = gtk.MenuItem("Add output file..")
+		self.setTemplate = gtk.MenuItem("Set template file..")
+		#separator = gtk.SeparatorMenuItem()
+
+		self.ToolsMenu.append(self.addInputFile)
+		self.ToolsMenu.append(self.addOutputFile)
+		self.ToolsMenu.append(self.setTemplate)
+
+		self.addInputFile.connect("activate",self.AddInputFileDialog)
+		self.addOutputFile.connect("activate",self.AddOutputFileDialog)
+		self.setTemplate.connect("activate",self.SetTemplate)
+
+		self.ToolsMenu.show()
+		self.addInputFile.show()
+		self.addOutputFile.show()
+		self.setTemplate.show()
+
+		self.ToolsOption = gtk.MenuItem("Tools")
+		self.ToolsOption.show()
+		self.ToolsOption.set_submenu(self.ToolsMenu)
 
 
 	#Create file menu options
@@ -790,16 +875,22 @@ class MainWindow():
 
 	#function to paste text into the editor from clipboard
 	def PasteText(self,widget):
-		
+		print("pasting text")
 		child = self.mainWindow.get_focus()
 		#don't allow pasting in the console output box
 		if(child == self.ConsoleText):
 			return
 		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
-		buffer.paste_clipboard(clipboard, None, True)
+		text = clipboard.wait_for_text()
+		#print("text to paste:",text)
+		buffer.insert_at_cursor(text)
+		#buffer.paste_clipboard(clipboard, None, True)
+		#print("buffer text:",buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		self.HighlightKeywords()
+		#return True
 
+	#include
 	#function to copy selected text onto the clipboard
 	def CopyText(self,widget):
 		
@@ -933,6 +1024,7 @@ class MainWindow():
 		config.set('Section1','opacity',self.PreferencesDict['opacity'])
 		config.set('Section1','tab_position',self.PreferencesDict['tab_position'])
 		config.set('Section1','recent_files_list',self.PreferencesDict['recent_files_list'])
+		config.set('Section1','template',self.PreferencesDict['template'])
 		with open('preferences.cfg', 'w') as configfile:
 			config.write(configfile)
 
@@ -953,12 +1045,100 @@ class MainWindow():
 			self.PreferencesDict["recent_files_list"] = eval(config.get('Section1','recent_files_list'))
 		except:
 			self.PreferencesDict["recent_files_list"] = []
+		try:
+			self.PreferencesDict["template"] = config.get('Section1','template')
+		except:
+			self.PreferencesDict["template"] = ''
 
 	#close the dialog box
 	def ClosePreferences(self,widget):
 
 		self.PreferencesDialog.destroy()
+
+
+	#add input test cases file
+	#reads input test cases from the file
+	def AddInputFileDialog(self,widget):
+		dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
+											(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+		dialog.set_default_response(gtk.RESPONSE_OK)
+		response = dialog.run()
+		if response == gtk.RESPONSE_OK:
+
+			filestream = open(dialog.get_filename()) #open stream to read file
+			filepath = dialog.get_filename() #extract filename
+			text = filestream.read() #extract text from file stream
+			filestream.close() #close stream
+
+			inputbuffer = self.InputText.get_buffer()
+			inputbuffer.set_text('')
+
+			inputbuffer.set_text(text)
+			self.InputText.set_buffer(inputbuffer)
+		dialog.destroy()
+
+
+	#add output test cases file
+	#reads output test cases from the file
+	def AddOutputFileDialog(self, widget):
+
+		dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
+											(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN, gtk.RESPONSE_OK))
+		dialog.set_default_response(gtk.RESPONSE_OK)
+		response = dialog.run()
+		if response == gtk.RESPONSE_OK:
+
+			filestream = open(dialog.get_filename()) #open stream to read file
+			filepath = dialog.get_filename() #extract filename
+			text = filestream.read() #extract text from file stream
+			filestream.close() #close stream
+
+
+			outputbuffer = self.OutputText.get_buffer()
+			outputbuffer.set_text('')
+
+			outputbuffer.set_text(text)
+			self.OutputText.set_buffer(outputbuffer)
+		dialog.destroy()
 		
+
+	#defines the template to be imported into every new file created
+	def SetTemplate(self,widget):
+		self.templateWindow = gtk.Window(gtk.WINDOW_TOPLEVEL)
+		self.templateWindow.set_title("Set Template")
+		self.templateWindow.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#696969'))
+		self.templateWindow.set_position(gtk.WIN_POS_CENTER)
+		self.templateWindow.set_default_size(500,500)
+
+		vbox = gtk.VBox()
+		self.templateWindow.add(vbox)
+
+		self.templateTextview = gtk.TextView()
+		text = self.PreferencesDict['template']
+		buffer = self.templateTextview.get_buffer()
+		buffer.set_text(text)
+		vbox.pack_start(self.templateTextview)
+
+		hbox = gtk.HBox()
+		vbox.pack_start(hbox,fill=False,expand=False)
+
+		saveButton = gtk.Button("Save")
+		saveButton.connect("clicked",self.SaveTemplate)
+
+		hbox.pack_start(saveButton)
+
+		self.templateWindow.show_all()
+
+
+	def SaveTemplate(self,widget):
+
+		buffer = self.templateTextview.get_buffer()
+		text = buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter())
+		self.PreferencesDict['template'] = str(text)
+		self.SavePreferences()
+		self.templateWindow.destroy()
+
+
 	#open an empty file and append it to the end of the notebook tabs
 	def OpenNewEmptyFile(self,widget):
 
@@ -966,6 +1146,7 @@ class MainWindow():
 		self.CodeNotebook.append_page(page.scrolledWindow,page.labelBox)
 		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.set_current_page(-1)
+		self.HighlightKeywords()
 
 
 	#show pop up dialog if changes made to file have not been saved and the user is quitting
