@@ -24,11 +24,13 @@ from pygoogle import pygoogle
 #background colors/ themes
 #function summary pop up
 #more preference settings (from createnotebookpage)
-#use spaces instead of tabs not working
 #runtime
+#undo redo shifts view to top
 
-
-#fixed
+#fixed/added
+#save dialog shows "open"
+#use spaces instead of tabs not working
+#auto close quotes
 #templates
 #highlight in cut paste
 #load input/output file
@@ -293,31 +295,48 @@ class MainWindow():
 				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
 				buffer.place_cursor(iter)
 				return True
-		if(event.string == '>'):
+		if(event.string == "'"):
 			start = buffer.get_iter_at_offset(buffer.get_property("cursor_position"))
 			end = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
 			char = buffer.get_text(start,end)
-			if(char == '>'):
+			if(char == "'"):
 				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
 				buffer.place_cursor(iter)
 				return True
+			else:
+				buffer.insert_at_cursor("'")
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
+				buffer.place_cursor(iter)
+		if(event.string == '"'):
+			start = buffer.get_iter_at_offset(buffer.get_property("cursor_position"))
+			end = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+			char = buffer.get_text(start,end)
+			if(char == '"'):
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")+1)
+				buffer.place_cursor(iter)
+				return True
+			else:
+				buffer.insert_at_cursor('"')
+				iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
+				buffer.place_cursor(iter)
+
 
 	#called when a key is pressed into the codeeditor
 	def CodeEditorKeyRelease(self, widget, event):
 		# page_num = self.CodeNotebook.get_current_page()
 		#if the key pressed was backspace or delete or a printable string
 		if(event.keyval == 65288 or event.keyval == 65535):
-			self.autoCompleteBrackets(event.string)
+			self.autoCompleteBracketsQuotes(event.string)
 			self.TextChangedCodeEditor()
 
 		elif( (event.string in string.printable) and (not event.string == '')) :
 			# print(event.string,self.CodeNotebookPageVals[page_num].undoThreadOn)
-			self.autoCompleteBrackets(event.string)
+			self.autoCompleteBracketsQuotes(event.string)
 			self.TextChangedCodeEditor()
 
 
 	#auto adds a closing brace when an opening brace is pressed
-	def autoCompleteBrackets(self, character):
+	def autoCompleteBracketsQuotes(self, character):
 		page_num = self.CodeNotebook.get_current_page()
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
 		if(character == '('):
@@ -331,11 +350,7 @@ class MainWindow():
 		if(character == '{'):
 			buffer.insert_at_cursor('}')
 			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
-			buffer.place_cursor(iter)	
-		if(character == '<'):
-			buffer.insert_at_cursor('>')
-			iter = buffer.get_iter_at_offset(buffer.get_property("cursor_position")-1)
-			buffer.place_cursor(iter)	
+			buffer.place_cursor(iter)
 
 		
 	# Once the thread is over reset the thread state to false to save the state if user types again
@@ -1322,7 +1337,7 @@ class MainWindow():
 
 	#show pop up dialog if changes made to file have not been saved and the user is quitting
 	def ConfirmSaveDialog(self, index):
-
+		print("confirmsavedialog")
 		dialogWindow = gtk.Dialog("Preferences", None, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
 										 (gtk.STOCK_NO, gtk.RESPONSE_NO, gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_SAVE, gtk.RESPONSE_OK))
 		dialogWindow.set_has_separator(True)
@@ -1375,7 +1390,7 @@ class MainWindow():
 
 	#create the open file dialog and open the selected file in a new tab if any
 	def OpenFileDialog(self, widget):
-
+		print("openfiledialog")
 		dialog = gtk.FileChooserDialog("Open..", None, gtk.FILE_CHOOSER_ACTION_OPEN, 
 											(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL, gtk.STOCK_OPEN, gtk.RESPONSE_OK))
 		dialog.set_default_response(gtk.RESPONSE_OK)
@@ -1403,9 +1418,9 @@ class MainWindow():
 
 	#open the save as file dialog and save the file 
 	def SaveAsFileDialog(self, widget):
-
+		print("saveasfiledialog")
 		dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
-											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_SAVE,gtk.RESPONSE_OK))
 		dialog.set_default_response(gtk.RESPONSE_OK)
 		response = dialog.run()
 		if response == gtk.RESPONSE_OK:
@@ -1442,7 +1457,7 @@ class MainWindow():
 		print("filepath :",filepath)
 		if(filepath == None):
 			dialog = gtk.FileChooserDialog("Save As..", None, gtk.FILE_CHOOSER_ACTION_SAVE,
-											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+											(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_SAVE,gtk.RESPONSE_OK))
 			dialog.set_default_response(gtk.RESPONSE_OK)
 			response = dialog.run()
 			if response == gtk.RESPONSE_OK:
