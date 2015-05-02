@@ -24,6 +24,7 @@ from pygoogle import pygoogle
 #background colors/ themes
 #function summary pop up
 #more preference settings (from createnotebookpage)
+#use spaces instead of tabs not working
 #runtime
 
 
@@ -203,11 +204,11 @@ class MainWindow():
 		CodeEditorText = gtksourceview2.View()
 		buffer = gtksourceview2.Buffer()
 		CodeEditorText.set_buffer(buffer)
-		CodeEditorText.set_indent_width(8)
-		CodeEditorText.set_highlight_current_line(True)
-		CodeEditorText.set_insert_spaces_instead_of_tabs(False)
-		CodeEditorText.set_show_line_numbers(True)
-		CodeEditorText.set_show_line_marks(True)
+		CodeEditorText.set_indent_width(self.PreferencesDict['indent_width'])
+		CodeEditorText.set_highlight_current_line(self.PreferencesDict['highlight_current_line'])
+		CodeEditorText.set_insert_spaces_instead_of_tabs(self.PreferencesDict['indent_with_spaces'])
+		CodeEditorText.set_show_line_numbers(self.PreferencesDict['show_line_numbers'])
+		CodeEditorText.set_show_line_marks(self.PreferencesDict['show_line_marks'])
 		CodeEditorText.set_auto_indent(True)
 		# CodeEditorText.set_show_right_margin(True)
 		CodeEditorText.set_smart_home_end(True)
@@ -918,25 +919,23 @@ class MainWindow():
 		self.PreferencesDialog = gtk.Dialog("Preferences")
 		self.PreferencesDialog.set_has_separator(True)
 		
-		#Hbox to hold label and opacity entry
-		hbox = gtk.HBox()
-		label = gtk.Label("Opacity (0-1) :")
-		label.show()
-		hbox.pack_start(label)
-		#opacity entry box
+		table = gtk.Table(rows = 4, columns = 2)
+		self.PreferencesDialog.vbox.pack_start(table)
+
+
+		#set opacity entry
+		label = gtk.Label("Opacity (0-1) ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,0,1)
 		self.PreferencesOpacityEntry = gtk.Entry()
 		self.PreferencesOpacityEntry.set_text(str(self.PreferencesDict['opacity']))
 		self.PreferencesOpacityEntry.connect('changed', self.checkOpacityEntry) #connect to function to validate values
-		self.PreferencesOpacityEntry.show()
-		hbox.pack_start(self.PreferencesOpacityEntry)
-		hbox.show()
-		self.PreferencesDialog.vbox.pack_start(hbox,padding = 5)
+		table.attach(self.PreferencesOpacityEntry,1,2,0,1)
 		
 		#create radio buttons for tab position
-		hbox = gtk.HBox()
-		label = gtk.Label("Tab Position : ")
-		label.show()
-		hbox.pack_start(label)
+		label = gtk.Label("Tab Position ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,1,2)
 		vbox = gtk.VBox()
 		tabsTopRadio = gtk.RadioButton(None,"Top")
 		tabsTopRadio.connect("toggled",self.changeCodeNotebookTabPosition,"TOP")
@@ -944,33 +943,116 @@ class MainWindow():
 		if(self.PreferencesDict["tab_position"] == "TOP"):
 			tabsTopRadio.set_active(True)
 		tabsTopRadio.show()
-
 		vbox.pack_start(tabsTopRadio)
+
 		tabsLeftRadio = gtk.RadioButton(tabsTopRadio,"Left")
 		tabsLeftRadio.connect("toggled",self.changeCodeNotebookTabPosition,"LEFT")
 		if(self.PreferencesDict["tab_position"] == "LEFT"):
 			tabsLeftRadio.set_active(True)
 		tabsLeftRadio.show()
-
 		vbox.pack_start(tabsLeftRadio)
+
 		tabsRightRadio = gtk.RadioButton(tabsTopRadio,"Right")
 		tabsRightRadio.connect("toggled",self.changeCodeNotebookTabPosition,"RIGHT")
 		if(self.PreferencesDict["tab_position"] == "RIGHT"):
 			tabsRightRadio.set_active(True)
 		tabsRightRadio.show()
-
 		vbox.pack_start(tabsRightRadio)
+		
 		tabsBottomRadio = gtk.RadioButton(tabsTopRadio,"Bottom")
 		tabsBottomRadio.connect("toggled",self.changeCodeNotebookTabPosition,"BOTTOM")
 		if(self.PreferencesDict["tab_position"] == "BOTTOM"):
 			tabsBottomRadio.set_active(True)
 		tabsBottomRadio.show()
-
 		vbox.pack_start(tabsBottomRadio)
-		hbox.show()
-		vbox.show()
-		hbox.pack_start(vbox)
-		self.PreferencesDialog.vbox.pack_start(hbox,padding = 5)
+		table.attach(vbox,1,2,1,2)
+
+
+
+		#radio buttons for indent width options
+		label = gtk.Label("Indent width ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,2,3)
+
+		vbox = gtk.VBox()
+		indentWidth2Radio = gtk.RadioButton(None,"2")
+		indentWidth2Radio.set_alignment(0,0)
+		indentWidth2Radio.connect("toggled",self.ChangeIndentWidth,2)
+		if(self.PreferencesDict["indent_width"] == 2):
+			indentWidth2Radio.set_active(True)
+		indentWidth2Radio.show()
+		vbox.pack_start(indentWidth2Radio)
+
+		indentWidth4Radio = gtk.RadioButton(indentWidth2Radio,"4")
+		indentWidth4Radio.connect("toggled",self.ChangeIndentWidth,4)
+		if(self.PreferencesDict["indent_width"] == 4):
+			indentWidth4Radio.set_active(True)
+		indentWidth4Radio.show()
+		vbox.pack_start(indentWidth4Radio)
+
+		indentWidth8Radio = gtk.RadioButton(indentWidth2Radio,"8")
+		indentWidth8Radio.connect("toggled",self.ChangeIndentWidth,8)
+		if(self.PreferencesDict["indent_width"] == 8):
+			indentWidth8Radio.set_active(True)
+		indentWidth8Radio.show()
+		vbox.pack_start(indentWidth8Radio)
+		table.attach(vbox,1,2,2,3)
+
+
+		#use spaces to indent option
+		label = gtk.Label("Use spaces to indent ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,3,4)
+		checkbutton = gtk.CheckButton()
+		checkbutton.set_alignment(0,0)
+		checkbutton.connect("toggled",self.ToggleIndentWithSpaces)
+		if(self.PreferencesDict['indent_with_spaces'] == True):
+			checkbutton.set_active(True)
+		else:
+			checkbutton.set_active(False)
+		table.attach(checkbutton,1,2,3,4)
+
+		#show line numbers option
+		label = gtk.Label("Show line numbers ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,4,5)
+		checkbutton = gtk.CheckButton()
+		checkbutton.set_alignment(0,0)
+		checkbutton.connect("toggled",self.ShowLineNumbers)
+		if(self.PreferencesDict['show_line_numbers'] == True):
+			checkbutton.set_active(True)
+		else:
+			checkbutton.set_active(False)
+		table.attach(checkbutton,1,2,4,5)
+
+		#highlight current line option
+		label = gtk.Label("Highlight current line ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,5,6)
+		checkbutton = gtk.CheckButton()
+		checkbutton.set_alignment(0,0)
+		checkbutton.connect("toggled",self.HighlightCurrentLine)
+		if(self.PreferencesDict['highlight_current_line'] == True):
+			checkbutton.set_active(True)
+		else:
+			checkbutton.set_active(False)
+		table.attach(checkbutton,1,2,5,6)
+
+		#show line mark option
+		label = gtk.Label("Show line marks ")
+		label.set_alignment(0,0)
+		table.attach(label,0,1,6,7)
+		checkbutton = gtk.CheckButton()
+		checkbutton.set_alignment(0,0)
+		checkbutton.connect("toggled",self.ShowLineMarks)
+		if(self.PreferencesDict['show_line_marks'] == True):
+			checkbutton.set_active(True)
+		else:
+			checkbutton.set_active(False)
+		table.attach(checkbutton,1,2,6,7)
+
+
+		table.show_all()
 
 		#add cancel button
 		button = self.PreferencesDialog.add_button("Close",gtk.RESPONSE_ACCEPT)
@@ -979,6 +1061,70 @@ class MainWindow():
 
 		self.PreferencesDialog.run()
 		self.PreferencesDialog.destroy()	
+
+
+	#called when highling current line option is toggled
+	def ShowLineMarks(self,widget):
+		if(widget.get_active()):
+			self.PreferencesDict['show_line_marks'] = True
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_show_line_marks(True)
+		else:
+			self.PreferencesDict['show_line_marks'] = False
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_show_line_marks(False)
+		self.SavePreferences()
+
+
+	#called when highling current line option is toggled
+	def HighlightCurrentLine(self,widget):
+		if(widget.get_active()):
+			self.PreferencesDict['highlight_current_line'] = True
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_highlight_current_line(True)
+		else:
+			self.PreferencesDict['highlight_current_line'] = False
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_highlight_current_line(False)
+		self.SavePreferences()
+
+
+	#called when show line numbers option is toggled
+	def ShowLineNumbers(self,widget):
+		if(widget.get_active()):
+			self.PreferencesDict['show_line_numbers'] = True
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_show_line_numbers(True)
+		else:
+			self.PreferencesDict['show_line_numbers'] = False
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_show_line_numbers(False)
+		self.SavePreferences()
+
+
+	#called when user toggles the use spaces to indent checkbutton
+	def ToggleIndentWithSpaces(self,widget):
+
+		if(widget.get_active()):
+			self.PreferencesDict['indent_with_spaces'] = True
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_insert_spaces_instead_of_tabs(True)
+			# print("insert spaces true")
+		else:
+			self.PreferencesDict['indent_with_spaces'] = False
+			for i in range(0,len(self.CodeNotebookPageVals)):
+				self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_insert_spaces_instead_of_tabs(False)
+			# print("insert spaces false")
+		self.SavePreferences()
+
+
+	#called when indent width is changed in preferences
+	def ChangeIndentWidth(self,widget,val):		
+
+		for i in range(0,len(self.CodeNotebookPageVals)):
+			self.CodeNotebookPageVals[i].scrolledWindow.get_children()[0].set_indent_width(val)
+		self.PreferencesDict["indent_width"] = val
+		self.SavePreferences()
 
 	#changes the position of the tab to the value of option
 	def changeCodeNotebookTabPosition(self,widget,option):
@@ -1025,6 +1171,11 @@ class MainWindow():
 		config.set('Section1','tab_position',self.PreferencesDict['tab_position'])
 		config.set('Section1','recent_files_list',self.PreferencesDict['recent_files_list'])
 		config.set('Section1','template',self.PreferencesDict['template'])
+		config.set('Section1','indent_width',self.PreferencesDict['indent_width'])
+		config.set('Section1','indent_with_spaces',self.PreferencesDict['indent_with_spaces'])
+		config.set('Section1','show_line_numbers',self.PreferencesDict['show_line_numbers'])
+		config.set('Section1','highlight_current_line',self.PreferencesDict['highlight_current_line'])
+		config.set('Section1','show_line_marks',self.PreferencesDict['show_line_marks'])
 		with open('preferences.cfg', 'w') as configfile:
 			config.write(configfile)
 
@@ -1049,6 +1200,26 @@ class MainWindow():
 			self.PreferencesDict["template"] = config.get('Section1','template')
 		except:
 			self.PreferencesDict["template"] = ''
+		try:
+			self.PreferencesDict["indent_width"] = eval(config.get('Section1','indent_width'))
+		except:
+			self.PreferencesDict["indent_width"] = 4
+		try:
+			self.PreferencesDict["indent_with_spaces"] = eval(config.get('Section1','indent_with_spaces'))
+		except:
+			self.PreferencesDict["indent_with_spaces"] = False
+		try:
+			self.PreferencesDict["show_line_numbers"] = eval(config.get('Section1','show_line_numbers'))
+		except:
+			self.PreferencesDict["show_line_numbers"] = True
+		try:
+			self.PreferencesDict["highlight_current_line"] = eval(config.get('Section1','highlight_current_line'))
+		except:
+			self.PreferencesDict["highlight_current_line"] = True
+		try:
+			self.PreferencesDict["show_line_marks"] = eval(config.get('Section1','show_line_marks'))
+		except:
+			self.PreferencesDict["show_line_marks"] = True
 
 	#close the dialog box
 	def ClosePreferences(self,widget):
