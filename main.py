@@ -26,21 +26,21 @@ from pygoogle import pygoogle
 #more preference settings (from createnotebookpage)
 #runtime
 #undo redo shifts view to top
+#run on terminal option
+#time to solve
+#undo redo not working
 
 #fixed/added
-#save dialog shows "open"
-#use spaces instead of tabs not working
-#auto close quotes
-#templates
-#highlight in cut paste
-#load input/output file
-#auto completion
+#fix autocomplete to check last word till start of line
+#reopen last not working
+#ctrl+s not working
+#highlight keywords not working for reopen last file
 
 class MainWindow():
 
 	def __init__(self):
 
-		#list of lists to hold values for each page in the notebook 
+		#list of pagevals objects to hold values for each page in the notebook 
 		# [scrolledwindow object, labelbox object, filepath, save state, textStates, undoThreadOn, tags]
 		self.CodeNotebookPageVals = [] 
 		
@@ -57,7 +57,7 @@ class MainWindow():
 		self.UndoPerformed = False 
 
 		self.CtrlPress = False
-		self.loadKeywords()
+		# self.loadKeywords()
 		self.loadPreferences()
 		print(self.PreferencesDict)
 		self.init()
@@ -65,7 +65,7 @@ class MainWindow():
 	def init(self):
 
 		self.mainWindow = gtk.Window(gtk.WINDOW_TOPLEVEL)
-		self.mainWindow.set_title("Zarroc")
+		self.mainWindow.set_title("Zar'roc")
 		self.mainWindow.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#696969'))
 		self.mainWindow.set_position(gtk.WIN_POS_CENTER)
 		self.mainWindow.set_default_size(500,500)
@@ -130,9 +130,9 @@ class MainWindow():
 		#adjust pane bar between IO window
 		self.IOPanedWindow.set_position(int(allocation.width*0.5))
 		#adjust pane bar between IO window and code editor window
-		self.IOCodeWindow.set_position(int(allocation.height*0.2))
+		self.IOCodeWindow.set_position(int(allocation.height*0.1))
 		#adjust pane bar between IO,codeeditor and compiler output window
-		self.CenterWindow.set_position(int(allocation.height*0.8))
+		self.CenterWindow.set_position(int(allocation.height*0.75))
 
 
 	#Creates the compiler output window
@@ -241,10 +241,12 @@ class MainWindow():
 
 
 		if(file_path == '/Untitled'):
+			# create pagevals object  with attributes 
 			# [scrolledwindow object, labelbox object, filepath, save state, textStates, undoThreadOn, tags]
 			page = PageVals(CodeEditorScrolledWindow, labelBox, None, True, [text], False, 0, [])
 			return page
 		else:
+			print("creating page with path : " + file_path)
 			page = PageVals(CodeEditorScrolledWindow, labelBox, file_path, True, [text], False, 0, [])
 			return page
 	
@@ -409,9 +411,10 @@ class MainWindow():
 	#removes all tags and reapplies them everytime a key is pressed
 	#TODO can be improved
 	def HighlightKeywords(self, textbuffer = None, iter = None, text = None, length = None):
-		#print("highlighting ",textbuffer)
+		# print("highlighting keywords")
 		#HIGHLIGHT KEYWORDS BELOW
 		page_num = self.CodeNotebook.get_current_page()
+		# print("page_num : " + str(page_num))
 		#get buffer of page
 
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
@@ -421,11 +424,12 @@ class MainWindow():
 
 		#remove tags from buffer and tagtable
 		try:
+			# print("removing existing tags")
 			for tag in self.CodeNotebookPageVals[page_num].tags:
 				buffer.remove_tag(tag,start_iter,end_iter)
 				buffer.get_tag_table().remove(tag)
 		except IndexError:
-			print("index error on tags")
+			print("index error on removing tags")
 			pass
 			# self.tags.append([])
 
@@ -434,9 +438,11 @@ class MainWindow():
 
 		start_iter = buffer.get_start_iter()
 		end_iter = buffer.get_end_iter()
+		# print(self.keywords)
 
 		#highlight keywords
 		for word in self.keywords:
+
 			#search from beginning
 			start_iter = buffer.get_start_iter()
 			pos = start_iter.forward_search(word,gtk.TEXT_SEARCH_TEXT_ONLY)		
@@ -460,9 +466,11 @@ class MainWindow():
 
 		#ask to save if not saved
 		if(not self.CodeNotebookPageVals[index].saveState):
+			print("save state false open save dialog")
 			if(not self.ConfirmSaveDialog(index)):
 				return
 		else:
+			print("save state true open save dialog")
 			#remove and delete the page
 			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
@@ -680,7 +688,6 @@ class MainWindow():
 	#creates the recent files menu
 	#also called when a tab is closed to refresh recent files list
 	def SetRecentFilesMenu(self):
-
 		self.RecentFilesMenu = gtk.Menu()
 		self.ReopenLastFileItem = gtk.MenuItem("Reopen Last")
 		self.ReopenLastFileItem.connect("activate", self.ReopenLastFile)
@@ -770,7 +777,14 @@ class MainWindow():
 	#reopen the previous file (hotkey function)
 	def ReopenLastFile(self, widget):
 		
-		filepath = self.PreferencesDict['recent_files_list'][self.PreviousFileIndex]
+		print("Previous files : ")
+		print(self.PreferencesDict['recent_files_list'])
+		try:
+			filepath = self.PreferencesDict['recent_files_list'][self.PreviousFileIndex]
+			print("reopening file with path : " + filepath)
+		except:
+			print("reopen previous files error")
+			return
 		self.OpenRecentFile(None, filepath)
 		self.PreviousFileIndex += 1
 
@@ -807,26 +821,31 @@ class MainWindow():
 	#opens the recent file
 	def OpenRecentFile(self,widget,filepath):
 
-		filename = self.GetFileName(filepath)
+		# filename = self.GetFileName(filepath)
 		f = open(filepath)
 		text = f.read()
 		f.close()
-		page = self.CreateNotebookPage(filename, text)
+		page = self.CreateNotebookPage(filepath, text)
 		self.CodeNotebookPageVals.append(page)
 		self.CodeNotebook.append_page(page.scrolledWindow, page.labelBox)		
 		self.CodeNotebook.set_current_page(-1)
+		print("going to highlight")
+		self.loadKeywords()
 		self.HighlightKeywords()
 
 
 	#close the current page
 	def CloseCurrentPage(self, widget):
-
+		# print('close current page')
 		index = self.CodeNotebook.get_current_page()
 		if(not self.CodeNotebookPageVals[index].saveState):
+			# print("save state false open save dialog")
 			if(not self.ConfirmSaveDialog(index)):
 				return
 		else:
+			# print("save state true open save dialog")
 			filepath = self.CodeNotebookPageVals[index].filepath
+			# print("filepath : " + str(filepath))
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
 			if(filepath != None):
@@ -834,8 +853,18 @@ class MainWindow():
 					self.PreferencesDict['recent_files_list'].remove(filepath)
 				except ValueError:
 					pass
+				
+				# print(self.PreferencesDict['recent_files_list'])
+				
+				if(self.PreferencesDict['recent_files_list'].__contains__(filepath)):
+					index = self.PreferencesDict['recent_files_list'].index(filepath)
+					del self.PreferencesDict['recent_files_list'][index]
+
 				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
 				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
+				
+				# print(self.PreferencesDict['recent_files_list'])
+				
 				self.SavePreferences()
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
@@ -1361,31 +1390,44 @@ class MainWindow():
 					self.PreferencesDict['recent_files_list'].remove(filepath)
 				except ValueError:
 					pass
+
+				if(self.PreferencesDict['recent_files_list'].__contains__(filepath)):
+					index = self.PreferencesDict['recent_files_list'].index(filepath)
+					del self.PreferencesDict['recent_files_list'][index]
+
 				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
 				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
 				self.SavePreferences()
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
+			dialogWindow.destroy()
 		elif(response == gtk.RESPONSE_CANCEL):
 			print("Dont close")
+			dialogWindow.destroy()
 		elif(response == gtk.RESPONSE_OK):
 			print("save file")
-			self.SaveFileDialog(None, page_num = index)
+			# self.SaveFileDialog(None, page_num = index)
 			filepath = self.CodeNotebookPageVals[index].filepath
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
-			del self.tags[index]
+			# del self.tags[index]
+			# print("wtf")
 			if(filepath != None):
 				try:
 					self.PreferencesDict['recent_files_list'].remove(filepath)
 				except ValueError:
 					pass
+
+				if(self.PreferencesDict['recent_files_list'].__contains__(filepath)):
+					index = self.PreferencesDict['recent_files_list'].index(filepath)
+					del self.PreferencesDict['recent_files_list'][index]
+
 				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
 				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
 				self.SavePreferences()
 				self.SetRecentFilesMenu()
 			self.PreviousFileIndex = 0
-		dialogWindow.destroy()
+			dialogWindow.destroy()
 
 
 	#create the open file dialog and open the selected file in a new tab if any
@@ -1404,6 +1446,8 @@ class MainWindow():
 
 			#create the page and add the text to the page
 			page = self.CreateNotebookPage(filepath, text)
+			page.printFilePath()
+
 			#append page details to notebook list
 			self.CodeNotebookPageVals.append(page)
 			#append the page into the code notebook(set of tabs)
@@ -1411,8 +1455,10 @@ class MainWindow():
 
 		elif response == gtk.RESPONSE_CANCEL:
 			print('Closed, no files selected') #log
+
 		dialog.destroy()
 		self.CodeNotebook.set_current_page(-1)
+		self.loadKeywords()
 		self.HighlightKeywords()
 
 
@@ -1441,6 +1487,7 @@ class MainWindow():
 		    print('Closed, no files selected') #log
 
 		dialog.destroy()
+		self.loadKeywords()
 
 	#close the app
 	def QuitApp(self,widget):
@@ -1472,6 +1519,8 @@ class MainWindow():
 				filestream.close()
 
 				self.CodeNotebookPageVals[page_num].labelBox.get_children()[0].set_label(self.GetFileName(filepath))
+				self.CodeNotebookPageVals[page_num].saveState = True
+
 			elif response == gtk.RESPONSE_CANCEL:
 				print('Closed, no files selected') #log
 			dialog.destroy()
@@ -1480,12 +1529,11 @@ class MainWindow():
 			
 			page_num = self.CodeNotebook.get_current_page()
 			buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
-			
 			filestream.write(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 			filestream.close()
 
 			self.CodeNotebookPageVals[page_num].labelBox.get_children()[0].set_label(self.GetFileName(filepath))
-
+			self.CodeNotebookPageVals[page_num].saveState = True
 
 	# setting hotkeys
 	def SetHotkeys(self):
@@ -1524,8 +1572,105 @@ class MainWindow():
 		self.SearchGoogle.connect('clicked',self.ShowGoogleResults)
 		self.ToolBarBox.pack_start(self.SearchGoogle, fill = False, expand = False)		
 
+
+
+	def GetFileExtension(self):
+		page_num = self.CodeNotebook.get_current_page()
+		filepath = self.CodeNotebookPageVals[page_num].filepath
+		index = filepath.rfind('.')
+		extension = filepath[index+1:]
+		return extension
+
 	#function called when compile&run button is click
-	def CompileRunCode(self,widget):
+	def CompileRunCode(self, widget):
+		self.SaveFileDialog(None, None)
+		extension = self.GetFileExtension()
+		if(extension == 'cpp'):
+			print("CPP file detected")
+			self.CompileRunCodeCPP()
+		elif(extension == 'R'):
+			self.CompileRunCodeR()
+		elif(extension == 'java'):
+			print("JAVA")
+		elif(extension == 'py'):
+			print("Python")
+			self.CompileRunCodePython()
+
+
+	#compule and run R code
+	def CompileRunCodeR(self):
+		codefile = open('tempcode.R','w')
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+		start_iter = buffer.get_start_iter()
+		end_iter = buffer.get_end_iter()
+		text = buffer.get_text(start_iter,end_iter,True)
+		codefile.write(text)
+		codefile.close()
+
+		#clear console window
+		buffer = self.ConsoleText.get_buffer()
+		buffer.set_text('')
+
+		#set label to compiling
+
+		#perform compilation
+		stream = subprocess.Popen(['Rscript','tempcode.R'],stdout = subprocess.PIPE,stdin = subprocess.PIPE,stderr= subprocess.PIPE)
+
+		#get output/err
+		output,err = stream.communicate()
+
+		print("OUTPUT : \n"+output)
+		print("ERROR : \n"+err)
+
+		#if no error
+		if(err == ''):
+			buffer = self.ConsoleText.get_buffer()
+			buffer.insert(buffer.get_end_iter(), "OUTPUT : \n"+output)
+		else:
+			buffer = self.ConsoleText.get_buffer()
+			buffer.insert(buffer.get_end_iter(), "ERROR LOG: \n"+err)
+		stream = subprocess.Popen(['rm','tempcode.R'])
+
+	# #compule and run R code
+	def CompileRunCodePython(self):
+		codefile = open('tempcode.py','w')
+		page_num = self.CodeNotebook.get_current_page()
+		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
+		start_iter = buffer.get_start_iter()
+		end_iter = buffer.get_end_iter()
+		text = buffer.get_text(start_iter,end_iter,True)
+		codefile.write(text)
+		codefile.close()
+
+		#clear console window
+		buffer = self.ConsoleText.get_buffer()
+		buffer.set_text('')
+
+		#set label to compiling
+
+		#perform compilation
+		stream = subprocess.Popen(['python','tempcode.py'],stdout = subprocess.PIPE,stdin = subprocess.PIPE,stderr= subprocess.PIPE)
+
+		#get output/err
+		output,err = stream.communicate()
+
+		print("OUTPUT : \n"+output)
+		print("ERROR : \n"+err)
+
+		#if no error
+		if(err == ''):
+			buffer = self.ConsoleText.get_buffer()
+			buffer.insert(buffer.get_end_iter(), "OUTPUT : \n"+output)
+		else:
+			buffer = self.ConsoleText.get_buffer()
+			buffer.insert(buffer.get_end_iter(), "ERROR LOG: \n"+err)
+
+		stream = subprocess.Popen(['rm','tempcode.py'])
+
+
+	#compile and run c++ code
+	def CompileRunCodeCPP(self):
 
 		#write code to file
 		codefile = open('tempcode.cpp','w')
@@ -1541,9 +1686,7 @@ class MainWindow():
 		buffer = self.ConsoleText.get_buffer()
 		buffer.set_text('')
 
-
 		#set label to compiling
-		
 
 		#perform compilation
 		stream = subprocess.Popen(['g++','tempcode.cpp'],stdout = subprocess.PIPE,stdin = subprocess.PIPE,stderr= subprocess.PIPE)
@@ -1571,7 +1714,11 @@ class MainWindow():
 			inputvalue = buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter())
 			print(inputvalue)
 			output, err = stream.communicate(inputvalue)
-			
+			# print('run output')
+			# print(output)
+			# print('run error')
+			# print(err)
+
 			#if no error => run successful
 			if(err == ''):
 
@@ -1608,10 +1755,22 @@ class MainWindow():
 				buffer = self.ConsoleText.get_buffer()
 				buffer.insert(buffer.get_end_iter(), "RUNTIME ERROR : \n"+err)
 			
+
+			# stream = subprocess.Popen(['time','./a.out'], stdout = subprocess.PIPE, stdin = subprocess.PIPE,stderr = subprocess.PIPE)
+			# output, err = stream.communicate(inputvalue)
+			# print("time output")
+			# print(output)
+			# print("time err")
+			# print(err)
+			# print(err[0:err.find('elapsed')+len('elapsed')])
+
+
 			#remove the temporary code file and run file
 			stream = subprocess.Popen(['rm','a.out'])
 			stream = subprocess.Popen(['rm','tempcode.cpp'])	
-				
+
+
+
 		else: #show compilation error
 			print("compilation error") #log
 			print(err) #log
@@ -1705,7 +1864,6 @@ class MainWindow():
 			return("<Page Title>")
 
 	def OpenUrl(self,widget,url):
-
 		webbrowser.open_new_tab(url)
 
 	#return the filename after extracting it from the filepath
@@ -1715,10 +1873,18 @@ class MainWindow():
 	#loads keywords (currently only cpp)
 	def loadKeywords(self):
 
-		f = open('cppkeywords.txt','r')
-		self.keywords = f.readlines()
-		for i in range(0,len(self.keywords)):
-			self.keywords[i] = self.keywords[i].rstrip()
+		extension = self.GetFileExtension()
+
+		if(extension == "cpp"):
+			f = open('cppkeywords.txt','r')
+			self.keywords = f.readlines()
+			for i in range(0,len(self.keywords)):
+				self.keywords[i] = self.keywords[i].rstrip()
+		elif(extension == "R"):
+			f = open('rkeywords.txt','r')
+			self.keywords = f.readlines()
+			for i in range(0,len(self.keywords)):
+				self.keywords[i] = self.keywords[i].rstrip()
 
 if __name__ == "__main__":
 	gtk.gdk.threads_init()

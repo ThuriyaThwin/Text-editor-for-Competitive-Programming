@@ -76,14 +76,14 @@ class AutoCompleter():
 			print("printable press")
 			self.store.clear()
 			word = self.getWord()
-			print(word)
-			word = word.strip()
-			suggests = self.getSuggestions(word)
-			print("suggests:",suggests)
+			# print("press word:",word)
+			word1 = word.strip()
+			suggests = self.getSuggestions(word1)
+			# print("suggests:",suggests)
 			if(len(suggests) == 0):
 				self.quit()
 			else:
-				for x in self.getSuggestions(word):
+				for x in suggests:
 					self.store.append([x])
 				# self.window.show_all()
 	
@@ -152,7 +152,7 @@ class AutoCompleter():
 
 
 	def getSuggestions(self, word):
-
+		# print("getting suggestions for "+ word)
 		suggests = []
 		for keyword in self.keywords:
 			if(keyword.startswith(word)):
@@ -162,25 +162,58 @@ class AutoCompleter():
 	def getWord(self):
 		buffer = self.view.get_buffer()
 		iter = buffer.get_iter_at_mark(buffer.get_insert())
-		# print("iter:",iter)
-		pos = iter.backward_search(' ',gtk.TEXT_SEARCH_TEXT_ONLY)
-		# print(pos)
-		if(pos == None):
-			pos = iter.backward_search('\n',gtk.TEXT_SEARCH_TEXT_ONLY)
-		if(pos == None):
-			pos = [0,buffer.get_start_iter()]
 
-		word = buffer.get_text(pos[1], iter)
+		iter1 = iter.copy()
+		while(not iter1.starts_word() and not iter1.is_start()):
+			iter1.backward_char()
+			char = iter1.get_char()
+			#print("char:",char)
+			if(char == '\n'):
+				iter1.forward_char()
+				break
+
+		word = buffer.get_text(iter1, iter)
+		# print("word:",word)
 		return word
+
+		# print("iter:",iter)
+		# pos = iter.backward_search(' ',gtk.TEXT_SEARCH_TEXT_ONLY)
+		# if(pos == None):
+		# 	pos = iter.backward_search('\n',gtk.TEXT_SEARCH_TEXT_ONLY)
+		# if(pos == None):
+		# 	pos = [0,buffer.get_start_iter()]
+		# word = buffer.get_text(pos[1], iter)
+
+		# iter1 = iter.copy()
+		# linenumber = iter1.get_line()
+		# # print("linenumber:",linenumber)
+		# iter1.set_line(linenumber)
+
+		# word1 = buffer.get_text(iter1, iter)
+		# # print("word1:",word1)
+		# return word1
 
 
 	def addWord(self, suggestedWord):
+
 		buffer = self.view.get_buffer()
 		iter = buffer.get_iter_at_mark(buffer.get_insert())
 		word = self.getWord()
+		# print("addword:",word)
 		pos = iter.backward_search(word,gtk.TEXT_SEARCH_TEXT_ONLY)
 		if(pos == None):
 			buffer.insert(iter,suggestedWord)
 		else:
 			buffer.delete(pos[0],pos[1])
 			buffer.insert(pos[0],suggestedWord)
+
+		# iter1 = iter.copy()
+		# while(not iter1.starts_word() and not iter1.is_start()):
+		# 	iter1.backward_char()
+		# 	char = iter1.get_char()
+		# 	#print("char:",char)
+		# 	if(char == '\n'):
+		# 		iter1.forward_char()
+		# 		break
+
+		# buffer.delete(iter1)
