@@ -1861,6 +1861,11 @@ class MainWindow():
 			self.keywords = f.readlines()
 			for i in range(0,len(self.keywords)):
 				self.keywords[i] = self.keywords[i].rstrip()
+		elif(extension == 'py'):
+			f = open('pykeywords.txt','r')
+			self.keywords = f.readlines()
+			for i in range(0,len(self.keywords)):
+				self.keywords[i] = self.keywords[i].rstrip()
 
 if __name__ == "__main__":
 	gtk.gdk.threads_init()

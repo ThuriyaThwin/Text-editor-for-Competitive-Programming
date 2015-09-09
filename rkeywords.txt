@@ -1,0 +1,14 @@
+if
+else
+repeat
+while
+function
+for
+in
+next
+break
+TRUE
+FALSE
+NULL
+Inf
+NaN
