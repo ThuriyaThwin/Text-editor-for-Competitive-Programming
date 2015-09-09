@@ -25,12 +25,13 @@ from pygoogle import pygoogle
 #function summary pop up
 #more preference settings (from createnotebookpage)
 #runtime
-#undo redo shifts view to top
 #run on terminal option
 #time to solve
-#undo redo not working
+
 
 #fixed/added
+#undo redo shifts view to top
+#undo redo not working
 #fix autocomplete to check last word till start of line
 #reopen last not working
 #ctrl+s not working
@@ -873,49 +874,28 @@ class MainWindow():
 	#function to undo text
 	def UndoText(self,widget):
 
+		#get page number
 		page_num = self.CodeNotebook.get_current_page()
-		self.UndoPerformed = True
+		#get buffer
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
-
-		# buffer.undo()
-		# return
-
-		# self.CodeNotebookPageVals[page_num].textStates.append(buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
-		try:
-			if(self.CodeNotebookPageVals[page_num].undoRedoIndex - 1 >= 0):
-				text = self.CodeNotebookPageVals[page_num].textStates[self.CodeNotebookPageVals[page_num].undoRedoIndex - 1]
-				buffer.set_text(text)
-				self.CodeNotebookPageVals[page_num].undoRedoIndex  = max(self.CodeNotebookPageVals[page_num].undoRedoIndex - 1, 0)
-				# del self.CodeNotebookPageVals[page_num].textStates[len(self.CodeNotebookPageVals[page_num].redoStates)-1]
-				# print("undo performed :",self.CodeNotebookPageVals[page_num].textStates)
-				# print("undoredoindex:", self.CodeNotebookPageVals[page_num].undoRedoIndex)
-		except: 
-			print("error nothing to undo")
-			pass
-		# if(len(self.CodeNotebookPageVals[page_num].redoStates) == 0):
-		# 	self.CodeNotebookPageVals[page_num].redoStates.append('')
+		#perform undo
+		buffer.undo()
+		#highlight keywords
 		self.HighlightKeywords()
+		return
 
+	#function to redo text
 	def RedoText(self, widget):
 
+		#get the page number
 		page_num = self.CodeNotebook.get_current_page()
-		self.UndoPerformed = True
+		#get buffer
 		buffer = self.CodeNotebookPageVals[page_num].scrolledWindow.get_children()[0].get_buffer()
-
-		# buffer.redo()
-		# return
-
-		try:
-			text = self.CodeNotebookPageVals[page_num].textStates[self.CodeNotebookPageVals[page_num].undoRedoIndex + 1]
-			buffer.set_text(text)
-			self.CodeNotebookPageVals[page_num].undoRedoIndex  += 1
-			# print("redo performed :",self.CodeNotebookPageVals[page_num].textStates)
-			# print("undoredoindex:", self.CodeNotebookPageVals[page_num].undoRedoIndex)
-		except:
-			print("error in redo")
-			pass
-
+		#perform redo
+		buffer.redo()
+		#highlight keywords
 		self.HighlightKeywords()
+		return
 
 
 	#function to paste text into the editor from clipboard
@@ -928,17 +908,15 @@ class MainWindow():
 		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
 		text = clipboard.wait_for_text()
-		#print("text to paste:",text)
+		#deleted any selected text
+		buffer.delete_selection(True,True)
+		#paste copied text
 		buffer.insert_at_cursor(text)
-		#buffer.paste_clipboard(clipboard, None, True)
-		#print("buffer text:",buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter()))
 		self.HighlightKeywords()
 		#return True
 
-	#include
 	#function to copy selected text onto the clipboard
 	def CopyText(self,widget):
-		
 		child = self.mainWindow.get_focus()
 		buffer = child.get_buffer()
 		clipboard =  gtk.Clipboard()
@@ -946,7 +924,6 @@ class MainWindow():
 
 	#function to cut selected text onto the clipboard
 	def CutText(self,widget):
-		
 		child = self.mainWindow.get_focus()
 		#don't allow cutting in the console output box
 		if(child == self.ConsoleText):
@@ -965,7 +942,6 @@ class MainWindow():
 		
 		table = gtk.Table(rows = 4, columns = 2)
 		self.PreferencesDialog.vbox.pack_start(table)
-
 
 		#set opacity entry
 		label = gtk.Label("Opacity (0-1) ")
