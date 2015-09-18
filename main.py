@@ -27,9 +27,10 @@ from pygoogle import pygoogle
 #runtime
 #run on terminal option
 #time to solve
-#file can be opened twice
+
 
 #fixed/added
+#file can be opened twice
 #reopen last not working
 #undo redo shifts view to top
 #undo redo not working
@@ -692,7 +693,7 @@ class MainWindow():
 	#also called when a tab is closed to refresh recent files list
 	def SetRecentFilesMenu(self):
 		self.RecentFilesMenu = gtk.Menu()
-		self.ReopenLastFileItem = gtk.MenuItem("Reopen Last")
+		self.ReopenLastFileItem = gtk.MenuItem("Reopen Last File")
 		self.ReopenLastFileItem.connect("activate", self.ReopenLastFile)
 		try:
 			self.ReopenLastFileItem.add_accelerator("activate", self.accel_group, ord('T'), gtk.gdk.CONTROL_MASK | gtk.gdk.SHIFT_MASK, gtk.ACCEL_VISIBLE) 
@@ -784,6 +785,24 @@ class MainWindow():
 		print(self.PreferencesDict['recent_files_list'])
 		try:
 			filepath = self.PreferencesDict['recent_files_list'][self.PreviousFileIndex]
+
+			#check if the file is already not open
+			#if it is then bring that file to focus
+			#else open it
+			flag = 0
+			index = 0
+			for page in self.CodeNotebookPageVals:
+				if(page.filepath == filepath):
+					flag = 1
+					break
+				index += 1
+
+			if(flag):
+				print("file already open")
+				self.CodeNotebook.set_current_page(index)
+				self.PreviousFileIndex += 1 
+				return
+
 			print("reopening file with path : " + filepath)
 		except:
 			print("reopen previous files error")
@@ -824,7 +843,23 @@ class MainWindow():
 	#opens the recent file
 	def OpenRecentFile(self,widget,filepath):
 
-		# filename = self.GetFileName(filepath)
+		#check if the file is already not open
+		#if it is then bring that file to focus
+		#else open it
+		flag = 0
+		index = 0
+		for page in self.CodeNotebookPageVals:
+			if(page.filepath == filepath):
+				flag = 1
+				break
+			index += 1
+
+		if(flag):
+			print("file already open")
+			self.CodeNotebook.set_current_page(index)
+			self.PreviousFileIndex += 1 
+			return
+
 		f = open(filepath)
 		text = f.read()
 		f.close()
@@ -1419,6 +1454,24 @@ class MainWindow():
 
 			filestream = open(dialog.get_filename()) #open stream to read file
 			filepath = dialog.get_filename() #extract filename
+
+			#check if the file is already not open
+			#if it is then bring that file to focus
+			#else open it
+			flag = 0
+			index = 0
+			for page in self.CodeNotebookPageVals:
+				if(page.filepath == filepath):
+					flag = 1
+					break
+				index += 1
+
+			if(flag):
+				print("file already open")
+				dialog.destroy()
+				self.CodeNotebook.set_current_page(index)
+				return
+
 			text = filestream.read() #extract text from file stream
 			filestream.close() #close stream
 
