@@ -27,13 +27,13 @@ from pygoogle import pygoogle
 #runtime
 #run on terminal option
 #time to solve
-
+#file can be opened twice
 
 #fixed/added
+#reopen last not working
 #undo redo shifts view to top
 #undo redo not working
 #fix autocomplete to check last word till start of line
-#reopen last not working
 #ctrl+s not working
 #highlight keywords not working for reopen last file
 
@@ -471,9 +471,10 @@ class MainWindow():
 			if(not self.ConfirmSaveDialog(index)):
 				return
 		else:
-			print("save state true open save dialog")
+			print("file already saved")
 			#remove and delete the page
 			filepath = self.CodeNotebookPageVals[index].filepath
+			print("filepath : " + str(filepath))
 			self.CodeNotebook.remove_page(index)
 			del self.CodeNotebookPageVals[index]
 			if(filepath != None):
@@ -481,6 +482,7 @@ class MainWindow():
 					self.PreferencesDict['recent_files_list'].remove(filepath)
 				except ValueError:
 					pass
+				print("saving as filepath : "+str(filepath))
 				self.PreferencesDict['recent_files_list'] = [filepath] + self.PreferencesDict['recent_files_list']
 				self.PreferencesDict['recent_files_list'] = self.PreferencesDict['recent_files_list'][0:10]
 				self.SavePreferences()
@@ -704,9 +706,9 @@ class MainWindow():
 		self.RecentFilesMenu.append(separator)
 		# print("recent_files_list", self.PreferencesDict['recent_files_list'])
 		for tempFile in self.PreferencesDict['recent_files_list']:
-			fileItem = gtk.MenuItem(self.GetFileName(tempFile))
+			fileItem = gtk.MenuItem(tempFile)
 			self.RecentFilesMenu.append(fileItem)
-			fileItem.connect("activate",self.OpenRecentFile, self.GetFileName(tempFile))
+			fileItem.connect("activate",self.OpenRecentFile, tempFile)
 			fileItem.show()
 		self.RecentFiles.set_submenu(self.RecentFilesMenu)
 
@@ -1544,7 +1546,7 @@ class MainWindow():
 		self.CompileRunButton.connect('clicked',self.CompileRunCode)
 		self.ToolBarBox.pack_start(self.CompileRunButton, fill = False, expand = False)
 
-		self.SearchGoogle = gtk.Button("Google Errors")		
+		self.SearchGoogle = gtk.Button("Error Search")		
 		self.SearchGoogle.connect('clicked',self.ShowGoogleResults)
 		self.ToolBarBox.pack_start(self.SearchGoogle, fill = False, expand = False)		
 
